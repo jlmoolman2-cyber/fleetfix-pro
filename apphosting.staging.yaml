@@ -1,6 +1,5 @@
-# Staging-only template. Firebase consumes apphosting.yaml, so do not activate
-# this file until an approved staging deployment is being prepared and the
-# registered staging Web App values are available.
+# Staging-specific Firebase App Hosting configuration.
+# This file overrides matching values from apphosting.yaml when the backend Environment name is staging.
 runConfig:
   minInstances: 0
 
@@ -31,13 +30,13 @@ env:
     secret: metaWebhookVerifyToken
     availability: [RUNTIME]
   - variable: META_WHATSAPP_PHONE_NUMBER_ID
-    value: ""
+    value: "1092582317262224"
     availability: [RUNTIME]
   - variable: META_GRAPH_API_VERSION
-    value: "v23.0"
+    value: "v25.0"
     availability: [RUNTIME]
   - variable: WHATSAPP_WEBHOOK_PUBLIC_URL
-    value: ""
+    value: "https://fleetfix-pro-staging--fleetfix-pro-staging.europe-west4.hosted.app/api/whatsapp/webhook"
     availability: [RUNTIME]
   - variable: WHATSAPP_ALLOW_META_READ_PROBE
     value: "false"
@@ -48,3 +47,4 @@ env:
   - variable: WHATSAPP_MEDIA_RETENTION_DAYS
     value: "0"
     availability: [RUNTIME]
+
