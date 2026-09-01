@@ -1,0 +1,58 @@
+# Settings for Backend (on Cloud Run).
+# See https://firebase.google.com/docs/app-hosting/configure#cloud-run
+runConfig:
+  minInstances: 0
+  # maxInstances: 100
+  # concurrency: 80
+  # cpu: 1
+  # memoryMiB: 512
+
+# Environment variables and secrets.
+env:
+  # Configure environment variables.
+  # See https://firebase.google.com/docs/app-hosting/configure#user-defined-environment
+  # - variable: MESSAGE
+  #   value: Hello world!
+  #   availability:
+  #     - BUILD
+  #     - RUNTIME
+
+  # Grant access to secrets in Cloud Secret Manager.
+  # You can create secrets with the CLI command `firebase apphosting:secrets:set <secretName>`.
+  # See https://firebase.google.com/docs/app-hosting/configure#secret-parameters
+  - variable: META_APP_SECRET
+    secret: metaAppSecret
+    availability:
+      - RUNTIME
+  - variable: META_WHATSAPP_ACCESS_TOKEN
+    secret: metaWhatsappAccessToken
+    availability:
+      - RUNTIME
+  - variable: META_WEBHOOK_VERIFY_TOKEN
+    secret: metaWebhookVerifyToken
+    availability:
+      - RUNTIME
+  - variable: META_WHATSAPP_PHONE_NUMBER_ID
+    value: ""
+    availability:
+      - RUNTIME
+  - variable: META_GRAPH_API_VERSION
+    value: "v23.0"
+    availability:
+      - RUNTIME
+  - variable: WHATSAPP_WEBHOOK_PUBLIC_URL
+    value: ""
+    availability:
+      - RUNTIME
+  - variable: WHATSAPP_ALLOW_META_READ_PROBE
+    value: "false"
+    availability:
+      - RUNTIME
+  - variable: WHATSAPP_MEDIA_WORKER_SECRET
+    secret: whatsappMediaWorkerSecret
+    availability:
+      - RUNTIME
+  - variable: WHATSAPP_MEDIA_RETENTION_DAYS
+    value: "0"
+    availability:
+      - RUNTIME

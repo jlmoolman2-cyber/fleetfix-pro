@@ -1,0 +1,50 @@
+# Staging-only template. Firebase consumes apphosting.yaml, so do not activate
+# this file until an approved staging deployment is being prepared and the
+# registered staging Web App values are available.
+runConfig:
+  minInstances: 0
+
+env:
+  - variable: FLEETFIX_ENVIRONMENT
+    value: "staging"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FLEETFIX_ENVIRONMENT
+    value: "staging"
+    availability: [BUILD, RUNTIME]
+
+  # Add these registered fleetfix-pro-staging Web App values before deployment.
+  # They are public Firebase settings, not Secret Manager secrets:
+  # - NEXT_PUBLIC_FIREBASE_API_KEY
+  # - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+  # - NEXT_PUBLIC_FIREBASE_PROJECT_ID
+  # - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+  # - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+  # - NEXT_PUBLIC_FIREBASE_APP_ID
+
+  - variable: META_APP_SECRET
+    secret: metaAppSecret
+    availability: [RUNTIME]
+  - variable: META_WHATSAPP_ACCESS_TOKEN
+    secret: metaWhatsappAccessToken
+    availability: [RUNTIME]
+  - variable: META_WEBHOOK_VERIFY_TOKEN
+    secret: metaWebhookVerifyToken
+    availability: [RUNTIME]
+  - variable: META_WHATSAPP_PHONE_NUMBER_ID
+    value: ""
+    availability: [RUNTIME]
+  - variable: META_GRAPH_API_VERSION
+    value: "v23.0"
+    availability: [RUNTIME]
+  - variable: WHATSAPP_WEBHOOK_PUBLIC_URL
+    value: ""
+    availability: [RUNTIME]
+  - variable: WHATSAPP_ALLOW_META_READ_PROBE
+    value: "false"
+    availability: [RUNTIME]
+  - variable: WHATSAPP_MEDIA_WORKER_SECRET
+    secret: whatsappMediaWorkerSecret
+    availability: [RUNTIME]
+  - variable: WHATSAPP_MEDIA_RETENTION_DAYS
+    value: "0"
+    availability: [RUNTIME]

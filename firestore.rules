@@ -1,0 +1,174 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function companyUserPath(companyId) {
+      return /databases/$(database)/documents/companies/$(companyId)/users/$(request.auth.uid);
+    }
+
+    function isCompanyMember(companyId) {
+      return signedIn()
+        && exists(companyUserPath(companyId))
+        && get(companyUserPath(companyId)).data.active != false;
+    }
+
+    function companyUser(companyId) {
+      return get(companyUserPath(companyId)).data;
+    }
+
+    function privilegedRole(companyId) {
+      return isCompanyMember(companyId)
+        && companyUser(companyId).primaryRole is string
+        && companyUser(companyId).primaryRole in ['Business Owner', 'Administrator', 'Super Admin'];
+    }
+
+    function hasPermission(companyId, permission) {
+      return isCompanyMember(companyId)
+        && (
+          privilegedRole(companyId)
+          || (
+            companyUser(companyId).permissions is map
+            && permission in companyUser(companyId).permissions
+            && companyUser(companyId).permissions[permission] == true
+          )
+        );
+    }
+
+    function canManageUsers(companyId) {
+      return hasPermission(companyId, 'Manage user permissions')
+        || hasPermission(companyId, 'Edit users')
+        || hasPermission(companyId, 'Create users')
+        || hasPermission(companyId, 'Deactivate users');
+    }
+
+    function isAdministrativeCollection(collectionId) {
+      return collectionId in [
+        'actions', 'communications', 'communicationRules', 'companyRates',
+        'customerFields', 'documentSettings', 'instructionFields',
+        'inventory_settings', 'jobCardFields', 'jobCardOutputSettings',
+        'jobFields', 'jobformcategories', 'jobFormCategories', 'jobforms',
+        'jobForms', 'jobcard_settings', 'jobsettings', 'jobSettings',
+        'jobTaskTemplates', 'jobTypes', 'messageTemplates',
+        'photoAlbumTemplates', 'query_settings', 'reasonFields', 'settings',
+        'statuses', 'termsTemplates', 'vehicleFieldCategories', 'workflow',
+        'whatsappSettings', 'whatsappTemplates', 'whatsappAutomationRules'
+      ];
+    }
+
+    function isServerOnlyWhatsAppCollection(collectionId) {
+      return collectionId in [
+        'whatsappConversations', 'whatsappMessages', 'whatsappWebhookEvents', 'whatsappSendRequests',
+        'whatsappAuditLog', 'whatsappDeliveryStatuses', 'whatsappRateLimits', 'whatsappDiagnostics', 'whatsappMediaJobs'
+      ];
+    }
+
+    function canManageAdministrativeCollection(companyId, collectionId) {
+      return privilegedRole(companyId)
+        || (collectionId in ['companyRates', 'customerFields', 'vehicleFieldCategories']
+          && hasPermission(companyId, 'Manage company details'))
+        || (collectionId in ['documentSettings']
+          && (hasPermission(companyId, 'Manage quote settings')
+            || hasPermission(companyId, 'Manage invoice settings')
+            || hasPermission(companyId, 'Manage purchase order settings')))
+        || (collectionId in ['inventory_settings']
+          && hasPermission(companyId, 'Manage stock locations'))
+        || (collectionId in ['communications', 'communicationRules', 'messageTemplates']
+          && (hasPermission(companyId, 'Manage message templates')
+            || hasPermission(companyId, 'Manage automated communication')))
+        || (collectionId == 'whatsappSettings'
+          && hasPermission(companyId, 'Manage WhatsApp settings'))
+        || (collectionId == 'whatsappTemplates'
+          && hasPermission(companyId, 'Manage templates'))
+        || (collectionId == 'whatsappAutomationRules'
+          && hasPermission(companyId, 'Manage automation rules'))
+        || (collectionId in ['query_settings']
+          && hasPermission(companyId, 'Manage query settings'))
+        || (collectionId in [
+          'actions', 'instructionFields', 'jobCardFields', 'jobCardOutputSettings',
+          'jobFields', 'jobformcategories', 'jobFormCategories', 'jobforms',
+          'jobForms', 'jobcard_settings', 'jobsettings', 'jobSettings',
+          'jobTaskTemplates', 'jobTypes', 'photoAlbumTemplates', 'reasonFields',
+          'statuses', 'termsTemplates', 'workflow'
+        ] && hasPermission(companyId, 'Manage job settings'));
+    }
+
+    function selfServiceUserUpdate(userId) {
+      return request.auth.uid == userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'notificationPreferences', 'screenPreferences', 'updatedAt',
+          'lastLoginAt', 'color', 'mobile'
+        ]);
+    }
+
+    match /companies/{companyId} {
+      allow read: if isCompanyMember(companyId);
+      allow create, update, delete: if privilegedRole(companyId)
+        || hasPermission(companyId, 'Manage company details');
+
+      match /users/{userId} {
+        allow read: if isCompanyMember(companyId);
+        allow create, delete: if canManageUsers(companyId);
+        allow update: if canManageUsers(companyId) || (isCompanyMember(companyId) && selfServiceUserUpdate(userId));
+      }
+
+      match /audit_log/{auditId} {
+        allow create: if isCompanyMember(companyId)
+          && request.resource.data.keys().hasAll(['action', 'createdAt'])
+          && request.resource.data.keys().size() <= 30
+          && request.resource.data.action is string
+          && request.resource.data.action.size() > 0
+          && request.resource.data.action.size() <= 200
+          && request.resource.data.createdAt is timestamp;
+        allow read: if hasPermission(companyId, 'View audit log');
+        allow update, delete: if false;
+      }
+
+      match /whatsappSettings/{settingId} {
+        allow read: if hasPermission(companyId, 'Manage WhatsApp settings');
+        allow write: if false;
+      }
+
+      match /whatsappAuditLog/{auditId} {
+        allow read: if hasPermission(companyId, 'View audit log');
+        allow write: if false;
+      }
+
+      match /{protectedCollection}/{document=**} {
+        allow read, write: if false;
+      }
+
+      match /{collectionId}/{document=**} {
+        allow read: if isCompanyMember(companyId)
+          && collectionId != 'users'
+          && collectionId != 'audit_log'
+          && collectionId != 'whatsappSettings'
+          && !isServerOnlyWhatsAppCollection(collectionId);
+        allow create, update, delete: if isCompanyMember(companyId)
+          && collectionId != 'users'
+          && collectionId != 'audit_log'
+          && collectionId != 'whatsappSettings'
+          && !isServerOnlyWhatsAppCollection(collectionId)
+          && (!isAdministrativeCollection(collectionId)
+            || canManageAdministrativeCollection(companyId, collectionId));
+      }
+    }
+
+    // The current UI reads the legacy global user directory. It remains
+    // readable to authenticated users for compatibility, while privileged
+    // fields can only be changed by an authorised comp_001 administrator.
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, delete: if canManageUsers('comp_001');
+      allow update: if canManageUsers('comp_001')
+        || (signedIn() && selfServiceUserUpdate(userId));
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

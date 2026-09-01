@@ -1,0 +1,42 @@
+{
+  "score": 3,
+  "summary": "The Phase 0 rules deny anonymous access, enforce active company membership, isolate companies, protect user permission writes, make audit records immutable, and gate administrative configuration. They intentionally retain broad operational writes for active members to preserve the current client-driven FleetFix workflows, so this is a secure foundation improvement but not yet least-privilege authorization for every business collection.",
+  "findings": [
+    {
+      "check": "The Update Bypass",
+      "severity": "moderate",
+      "issue": "Operational collections permit active members to create, update, and delete records without collection-specific immutable-field validation.",
+      "recommendation": "Migrate sensitive operational mutations to server routes or add tested per-collection permission and field validation rules incrementally."
+    },
+    {
+      "check": "Authority Source",
+      "severity": "minor",
+      "issue": "Authority correctly comes from the existing company user document, but the legacy global user directory still depends on comp_001 administrator authority because root user documents have no tenant owner field.",
+      "recommendation": "Make company user documents canonical and remove client dependency on the global user directory during a later migration."
+    },
+    {
+      "check": "Business Logic vs. Rules",
+      "severity": "moderate",
+      "issue": "The compatibility rule preserves current browser workflows but does not enforce every granular FleetFix permission on operational collections.",
+      "recommendation": "Build a workflow permission matrix and tighten one module at a time with emulator regression fixtures."
+    },
+    {
+      "check": "Storage Abuse",
+      "severity": "minor",
+      "issue": "Storage uploads are company-scoped and limited to 50 MiB with a content-type requirement, but per-module MIME allowlists and quotas are not yet enforced.",
+      "recommendation": "Add module-specific paths, MIME allowlists, quotas, and protected server delivery when each file workflow is migrated."
+    },
+    {
+      "check": "Type Safety",
+      "severity": "minor",
+      "issue": "Audit creation has field count, string length, and timestamp validation, but legacy operational documents retain flexible schemas.",
+      "recommendation": "Add type and size validation alongside schema stabilization for each operational module."
+    },
+    {
+      "check": "Field-Level vs. Identity-Level Security",
+      "severity": "minor",
+      "issue": "Self-service user updates combine UID ownership with an explicit field allowlist; privileged updates require authority from the existing company user record. No self-assigned role path was found in the Phase 0 rules.",
+      "recommendation": "Keep regression tests for role, permissions, active, and isAdmin escalation on every rules change."
+    }
+  ]
+}

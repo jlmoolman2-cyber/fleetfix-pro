@@ -1,0 +1,33 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isCompanyMember(companyId) {
+      return signedIn()
+        && firestore.exists(/databases/(default)/documents/companies/$(companyId)/users/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/companies/$(companyId)/users/$(request.auth.uid)).data.active != false;
+    }
+
+    function validUpload() {
+      return request.resource != null
+        && request.resource.size > 0
+        && request.resource.size <= 50 * 1024 * 1024
+        && request.resource.contentType is string
+        && request.resource.contentType.size() <= 150;
+    }
+
+    match /companies/{companyId}/{path=**} {
+      allow read: if isCompanyMember(companyId);
+      allow create, update: if isCompanyMember(companyId) && validUpload();
+      allow delete: if isCompanyMember(companyId);
+    }
+
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

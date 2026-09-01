@@ -1,0 +1,309 @@
+import "server-only";
+
+import { FieldPath, FieldValue, Timestamp, type DocumentData, type Query } from "firebase-admin/firestore";
+import { adminDb } from "@/lib/firebaseAdmin";
+import type { ServerUserContext } from "./auth";
+import { WhatsAppError } from "./errors";
+import { requireWhatsAppPermission, userHasPermission } from "./permissions";
+import { buildSearchTokens, searchToken } from "./search";
+
+const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+const PAGE_SIZE = 30;
+
+function requireId(value: unknown, label: string): string {
+  const id = String(value || "");
+  if (!ID_PATTERN.test(id)) throw new WhatsAppError("INVALID_INPUT", `${label} is invalid.`, 400);
+  return id;
+}
+
+function iso(value: unknown): string | null {
+  if (value instanceof Timestamp) return value.toDate().toISOString();
+  if (value && typeof (value as { toDate?: unknown }).toDate === "function") return (value as { toDate(): Date }).toDate().toISOString();
+  return null;
+}
+
+function encodeCursor(data: { milliseconds: number; id: string }): string {
+  return Buffer.from(JSON.stringify(data)).toString("base64url");
+}
+
+function decodeCursor(value: string | null): { milliseconds: number; id: string } | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+    if (!Number.isFinite(parsed.milliseconds) || !ID_PATTERN.test(parsed.id)) throw new Error();
+    return parsed;
+  } catch { throw new WhatsAppError("INVALID_INPUT", "The pagination cursor is invalid.", 400); }
+}
+
+function capabilities(context: ServerUserContext) {
+  return {
+    view: userHasPermission(context.companyUser, "View conversations"),
+    manage: userHasPermission(context.companyUser, "Manage conversations"),
+    assign: userHasPermission(context.companyUser, "Assign conversations"),
+    close: userHasPermission(context.companyUser, "Close conversations"),
+  };
+}
+
+function conversationJson(id: string, data: DocumentData) {
+  return {
+    id,
+    customerId: data.customerId || null,
+    contactId: data.contactId || null,
+    customerName: String(data.customerName || ""),
+    contactName: String(data.contactName || ""),
+    jobId: data.jobId || null,
+    jobNumber: data.jobNumber || null,
+    phoneNumber: String(data.phoneNumberNormalized || data.phoneNumber || ""),
+    assignedUserId: data.assignedUserId || null,
+    assignedUserName: String(data.assignedUserName || ""),
+    status: String(data.status || "open"),
+    unreadCount: Math.max(0, Number(data.unreadCount || 0)),
+    lastMessageText: String(data.lastMessageText || "").slice(0, 500),
+    lastMessageAt: iso(data.lastMessageAt),
+    lastInboundAt: iso(data.lastInboundAt),
+    serviceWindowExpiresAt: iso(data.serviceWindowExpiresAt),
+    needsJobAssignment: data.needsJobAssignment === true,
+    linkMethod: String(data.linkMethod || ""),
+  };
+}
+
+export async function listConversations(context: ServerUserContext, url: URL) {
+  requireWhatsAppPermission(context.companyUser, "View inbox");
+  const scope = url.searchParams.get("scope") || "all";
+  const search = String(url.searchParams.get("search") || "").trim().slice(0, 80);
+  const assignedUser = String(url.searchParams.get("assignedUser") || "");
+  const startDate = url.searchParams.get("startDate");
+  const endDate = url.searchParams.get("endDate");
+  const cursor = decodeCursor(url.searchParams.get("cursor"));
+  let query: Query = adminDb.collection(`companies/${context.companyId}/whatsappConversations`);
+  const boundedPostFilters: Array<(data: DocumentData) => boolean> = [];
+
+  if (search) query = query.where("searchTokens", "array-contains", searchToken(search));
+  else if (startDate || endDate) {
+    if (startDate) query = query.where("lastMessageAt", ">=", Timestamp.fromDate(new Date(`${startDate}T00:00:00.000Z`)));
+    if (endDate) query = query.where("lastMessageAt", "<=", Timestamp.fromDate(new Date(`${endDate}T23:59:59.999Z`)));
+  } else if (assignedUser && ID_PATTERN.test(assignedUser)) query = query.where("assignedUserId", "==", assignedUser);
+  else if (scope === "unread") query = query.where("unreadCount", ">", 0);
+  else if (scope === "open") query = query.where("status", "==", "open");
+  else if (scope === "closed") query = query.where("status", "==", "closed");
+  else if (scope === "unassigned") query = query.where("status", "==", "unassigned");
+  else if (scope === "mine") query = query.where("assignedUserId", "==", context.uid);
+  else if (scope === "needs-job") query = query.where("needsJobAssignment", "==", true);
+
+  if (search || startDate || endDate || assignedUser) {
+    if (scope === "unread") boundedPostFilters.push((data) => Number(data.unreadCount || 0) > 0);
+    if (scope === "open") boundedPostFilters.push((data) => data.status === "open");
+    if (scope === "closed") boundedPostFilters.push((data) => data.status === "closed");
+    if (scope === "unassigned") boundedPostFilters.push((data) => data.status === "unassigned");
+    if (scope === "mine") boundedPostFilters.push((data) => data.assignedUserId === context.uid);
+    if (scope === "needs-job") boundedPostFilters.push((data) => data.needsJobAssignment === true);
+  }
+  query = query.orderBy("lastMessageAt", "desc").orderBy(FieldPath.documentId(), "desc");
+  if (cursor) query = query.startAfter(Timestamp.fromMillis(cursor.milliseconds), cursor.id);
+  const snapshot = await query.limit(boundedPostFilters.length ? 100 : PAGE_SIZE + 1).get();
+  const filtered = snapshot.docs.filter((document) => boundedPostFilters.every((filter) => filter(document.data())));
+  const page = filtered.slice(0, PAGE_SIZE);
+  const usersSnapshot = await adminDb.collection(`companies/${context.companyId}/users`).limit(100).get();
+  const items = page.map((document) => conversationJson(document.id, document.data()));
+  const last = page.at(-1);
+  return {
+    items,
+    nextCursor: (filtered.length > PAGE_SIZE || snapshot.size > page.length) && last
+      ? encodeCursor({ milliseconds: last.data().lastMessageAt?.toMillis?.() || 0, id: last.id }) : null,
+    currentUserId: context.uid,
+    users: usersSnapshot.docs.filter((document) => document.data().active !== false).map((document) => ({
+      id: document.id,
+      name: String(document.data().name || document.data().displayName || `${document.data().firstName || ""} ${document.data().lastName || ""}`.trim() || document.data().email || "FleetFix user"),
+    })),
+    capabilities: capabilities(context),
+  };
+}
+
+async function conversationDocument(context: ServerUserContext, conversationId: string) {
+  const id = requireId(conversationId, "Conversation ID");
+  const snapshot = await adminDb.doc(`companies/${context.companyId}/whatsappConversations/${id}`).get();
+  if (!snapshot.exists) throw new WhatsAppError("NOT_FOUND", "This WhatsApp conversation no longer exists.", 404);
+  return snapshot;
+}
+
+export async function getConversation(context: ServerUserContext, conversationId: string, jobSearch = "") {
+  requireWhatsAppPermission(context.companyUser, "View conversations");
+  const conversation = await conversationDocument(context, conversationId);
+  const data = conversation.data() || {};
+  const usersSnapshot = await adminDb.collection(`companies/${context.companyId}/users`).limit(100).get();
+  let jobsQuery: Query = adminDb.collection(`companies/${context.companyId}/jobs`);
+  if (data.customerId) jobsQuery = jobsQuery.where("customerId", "==", data.customerId);
+  const jobsSnapshot = await jobsQuery.limit(100).get();
+  const needle = jobSearch.trim().toLowerCase().slice(0, 80);
+  const jobs = jobsSnapshot.docs.map((document) => {
+    const job = document.data();
+    return {
+      id: document.id,
+      jobNumber: String(job.jobNumber || document.id),
+      customerId: job.customerId || null,
+      vehicleRegistration: String(job.vehicleRegistration || job.registration || ""),
+      fleetNumber: String(job.fleetNumber || ""),
+      status: String(job.status || ""),
+      active: job.isClosed !== true && job.isCompleted !== true && job.archived !== true,
+    };
+  }).filter((job) => !needle || `${job.jobNumber} ${job.vehicleRegistration} ${job.fleetNumber}`.toLowerCase().includes(needle)).slice(0, 30);
+  return {
+    conversation: conversationJson(conversation.id, data),
+    users: usersSnapshot.docs.filter((document) => document.data().active !== false).map((document) => ({
+      id: document.id,
+      name: String(document.data().name || document.data().displayName || `${document.data().firstName || ""} ${document.data().lastName || ""}`.trim() || document.data().email || "FleetFix user"),
+    })),
+    jobs,
+    capabilities: capabilities(context),
+  };
+}
+
+export async function listMessages(context: ServerUserContext, conversationId: string, url: URL) {
+  requireWhatsAppPermission(context.companyUser, "View conversations");
+  const conversation = await conversationDocument(context, conversationId);
+  const cursor = decodeCursor(url.searchParams.get("cursor"));
+  let query: Query = adminDb.collection(`companies/${context.companyId}/whatsappMessages`)
+    .where("conversationId", "==", conversation.id)
+    .orderBy("metaTimestamp", "desc").orderBy(FieldPath.documentId(), "desc");
+  if (cursor) query = query.startAfter(Timestamp.fromMillis(cursor.milliseconds), cursor.id);
+  const snapshot = await query.limit(51).get();
+  const page = snapshot.docs.slice(0, 50);
+  const messages = page.map((document) => {
+    const data = document.data();
+    return {
+      id: document.id,
+      direction: data.direction === "outgoing" ? "outgoing" : "incoming",
+      messageType: String(data.messageType || "text"),
+      messageText: String(data.messageText || "").slice(0, 4096),
+      status: String(data.status || "received"),
+      timestamp: iso(data.metaTimestamp || data.createdAt),
+      failureReason: data.status === "failed" ? String(data.failureReason || "Message failed").slice(0, 200) : null,
+      mediaType: data.mediaType || null,
+      mediaFilename: data.mediaFilename || null,
+      mediaMimeType: data.mediaMimeType || null,
+      mediaSize: Number(data.mediaSize || 0),
+      mediaIngestionStatus: data.mediaIngestionStatus || null,
+      mediaFailureReason: data.mediaIngestionStatus === "failed" ? String(data.mediaFailureReason || "Media unavailable").slice(0, 200) : null,
+    };
+  }).reverse();
+  const oldest = page.at(-1);
+  return {
+    messages,
+    nextCursor: snapshot.size > 50 && oldest
+      ? encodeCursor({ milliseconds: oldest.data().metaTimestamp?.toMillis?.() || 0, id: oldest.id }) : null,
+  };
+}
+
+export async function getMessageMedia(context: ServerUserContext, conversationId: string, messageId: string) {
+  requireWhatsAppPermission(context.companyUser, "View conversations");
+  const safeConversationId = requireId(conversationId, "Conversation ID");
+  const safeMessageId = requireId(messageId, "Message ID");
+  await conversationDocument(context, safeConversationId);
+  const message = await adminDb.doc(`companies/${context.companyId}/whatsappMessages/${safeMessageId}`).get();
+  const data = message.data() || {};
+  if (!message.exists || data.conversationId !== safeConversationId || data.mediaIngestionStatus !== "stored") throw new WhatsAppError("NOT_FOUND", "WhatsApp media is unavailable.", 404);
+  const storagePath = String(data.mediaStoragePath || "");
+  if (!storagePath.startsWith(`companies/${context.companyId}/whatsapp-media/${safeMessageId}/`)) throw new WhatsAppError("FORBIDDEN", "WhatsApp media path is invalid.", 403);
+  return { storagePath, contentType: String(data.mediaMimeType || "application/octet-stream"), filename: String(data.mediaFilename || "whatsapp-media") };
+}
+
+function auditRef(companyId: string) {
+  return adminDb.collection(`companies/${companyId}/whatsappAuditLog`).doc();
+}
+
+export async function updateConversation(context: ServerUserContext, conversationId: string, body: unknown) {
+  if (!body || typeof body !== "object") throw new WhatsAppError("INVALID_INPUT", "Conversation action is invalid.", 400);
+  const input = body as Record<string, unknown>;
+  const action = String(input.action || "");
+  const conversation = await conversationDocument(context, conversationId);
+  const conversationRef = conversation.ref;
+
+  if (action === "read") {
+    requireWhatsAppPermission(context.companyUser, "View conversations");
+    await adminDb.runTransaction(async (transaction) => {
+      const current = await transaction.get(conversationRef);
+      if (!current.exists) throw new WhatsAppError("NOT_FOUND", "This WhatsApp conversation no longer exists.", 404);
+      if (Number(current.data()?.unreadCount || 0) === 0) return;
+      transaction.update(conversationRef, { unreadCount: 0, lastReadAt: FieldValue.serverTimestamp(), lastReadBy: context.uid, updatedAt: FieldValue.serverTimestamp() });
+      transaction.create(auditRef(context.companyId), { companyId: context.companyId, action: "CONVERSATION_READ", result: "success", conversationId, userId: context.uid, createdAt: FieldValue.serverTimestamp() });
+    });
+  } else if (action === "assign-user") {
+    requireWhatsAppPermission(context.companyUser, "Assign conversations");
+    const userId = input.userId ? requireId(input.userId, "User ID") : null;
+    let userName = "";
+    if (userId) {
+      const user = await adminDb.doc(`companies/${context.companyId}/users/${userId}`).get();
+      if (!user.exists || user.data()?.active === false) throw new WhatsAppError("NOT_FOUND", "The selected employee is unavailable.", 404);
+      userName = String(user.data()?.name || user.data()?.displayName || `${user.data()?.firstName || ""} ${user.data()?.lastName || ""}`.trim() || user.data()?.email || "FleetFix user");
+    }
+    await adminDb.runTransaction(async (transaction) => {
+      const current = await transaction.get(conversationRef);
+      const previous = current.data()?.assignedUserId || null;
+      if (previous === userId) return;
+      transaction.update(conversationRef, { assignedUserId: userId, assignedUserName: userName, assignedAt: FieldValue.serverTimestamp(), assignedBy: context.uid, updatedAt: FieldValue.serverTimestamp() });
+      transaction.create(auditRef(context.companyId), { companyId: context.companyId, action: "CONVERSATION_ASSIGNED", result: "success", conversationId, userId: context.uid, previousAssignedUserId: previous, assignedUserId: userId, createdAt: FieldValue.serverTimestamp() });
+    });
+  } else if (action === "assign-job") {
+    requireWhatsAppPermission(context.companyUser, "Manage conversations");
+    const jobId = requireId(input.jobId, "Job ID");
+    const job = await adminDb.doc(`companies/${context.companyId}/jobs/${jobId}`).get();
+    if (!job.exists) throw new WhatsAppError("NOT_FOUND", "The selected FleetFix job no longer exists.", 404);
+    const currentData = conversation.data() || {};
+    const jobData = job.data() || {};
+    if (currentData.customerId && jobData.customerId !== currentData.customerId) {
+      throw new WhatsAppError("FORBIDDEN", "The selected job does not belong to this conversation's customer.", 403);
+    }
+    let customerName = currentData.customerName || "";
+    if (!currentData.customerId && jobData.customerId) {
+      const customer = await adminDb.doc(`companies/${context.companyId}/customers/${jobData.customerId}`).get();
+      customerName = String(customer.data()?.companyName || customer.data()?.name || "");
+    }
+    await adminDb.runTransaction(async (transaction) => {
+      const current = await transaction.get(conversationRef);
+      const data = current.data() || {};
+      transaction.update(conversationRef, {
+        jobId: job.id,
+        jobNumber: String(jobData.jobNumber || job.id),
+        customerId: data.customerId || jobData.customerId || null,
+        customerName,
+        needsJobAssignment: false,
+        jobAssignedAt: FieldValue.serverTimestamp(),
+        jobAssignedBy: context.uid,
+        searchTokens: buildSearchTokens([customerName, data.contactName, data.phoneNumberNormalized, jobData.jobNumber, jobData.vehicleRegistration, jobData.fleetNumber]),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      transaction.create(auditRef(context.companyId), {
+        companyId: context.companyId, action: "CONVERSATION_JOB_ASSIGNED", result: "success", conversationId,
+        userId: context.uid, previousJobId: data.jobId || null, previousJobNumber: data.jobNumber || null,
+        jobId: job.id, jobNumber: String(jobData.jobNumber || job.id), createdAt: FieldValue.serverTimestamp(),
+      });
+    });
+  } else if (action === "close" || action === "reopen") {
+    requireWhatsAppPermission(context.companyUser, "Close conversations");
+    const closing = action === "close";
+    await adminDb.runTransaction(async (transaction) => {
+      const current = await transaction.get(conversationRef);
+      const data = current.data() || {};
+      const desired = closing ? "closed" : (data.customerId ? "open" : "unassigned");
+      if (data.status === desired) return;
+      transaction.update(conversationRef, {
+        status: desired,
+        closedAt: closing ? FieldValue.serverTimestamp() : null,
+        closedBy: closing ? context.uid : null,
+        reopenedAt: closing ? data.reopenedAt || null : FieldValue.serverTimestamp(),
+        reopenedBy: closing ? data.reopenedBy || null : context.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      transaction.create(auditRef(context.companyId), { companyId: context.companyId, action: closing ? "CONVERSATION_CLOSED" : "CONVERSATION_REOPENED", result: "success", conversationId, userId: context.uid, createdAt: FieldValue.serverTimestamp() });
+    });
+  } else {
+    throw new WhatsAppError("INVALID_INPUT", "Conversation action is not supported.", 400);
+  }
+  return getConversation(context, conversationId);
+}
+
+export async function unreadSummary(context: ServerUserContext) {
+  requireWhatsAppPermission(context.companyUser, "View inbox");
+  const aggregate = await adminDb.collection(`companies/${context.companyId}/whatsappConversations`).where("unreadCount", ">", 0).count().get();
+  return { unreadConversations: aggregate.data().count };
+}

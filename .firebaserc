@@ -1,0 +1,6 @@
+{
+  "projects": {
+    "default": "fleetfix-pro",
+    "staging": "fleetfix-pro-staging"
+  }
+}

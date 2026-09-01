@@ -1,0 +1,15 @@
+{
+  "indexes": [
+    { "collectionGroup": "whatsappConversations", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "lastMessageAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "whatsappConversations", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "unreadCount", "order": "ASCENDING" }, { "fieldPath": "lastMessageAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "whatsappConversations", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "assignedUserId", "order": "ASCENDING" }, { "fieldPath": "lastMessageAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "whatsappConversations", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "needsJobAssignment", "order": "ASCENDING" }, { "fieldPath": "lastMessageAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "whatsappConversations", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "searchTokens", "arrayConfig": "CONTAINS" }, { "fieldPath": "lastMessageAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "whatsappMessages", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "conversationId", "order": "ASCENDING" }, { "fieldPath": "metaTimestamp", "order": "DESCENDING" }] },
+    { "collectionGroup": "whatsappAuditLog", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "createdAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "whatsappMediaJobs", "queryScope": "COLLECTION_GROUP", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "nextAttemptAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "whatsappMediaJobs", "queryScope": "COLLECTION_GROUP", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "leaseExpiresAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "contacts", "queryScope": "COLLECTION_GROUP", "fields": [{ "fieldPath": "companyId", "order": "ASCENDING" }, { "fieldPath": "normalizedPhoneNumbers", "arrayConfig": "CONTAINS" }] }
+  ],
+  "fieldOverrides": []
+}
