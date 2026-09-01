@@ -32,16 +32,8 @@ env:
     secret: metaWebhookVerifyToken
     availability:
       - RUNTIME
-  - variable: META_WHATSAPP_PHONE_NUMBER_ID
-    value: ""
-    availability:
-      - RUNTIME
   - variable: META_GRAPH_API_VERSION
     value: "v23.0"
-    availability:
-      - RUNTIME
-  - variable: WHATSAPP_WEBHOOK_PUBLIC_URL
-    value: ""
     availability:
       - RUNTIME
   - variable: WHATSAPP_ALLOW_META_READ_PROBE
@@ -56,3 +48,4 @@ env:
     value: "0"
     availability:
       - RUNTIME
+
