@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, BriefcaseBusiness, Check, CheckCheck, CircleAlert, Inbox, Loader2, LockKeyhole, MessageCircle, Search, UserRound, X } from "lucide-react";
 import { whatsappApi } from "@/lib/whatsapp/clientApi";
 import { formatPhoneForDisplay } from "@/lib/whatsapp/phoneNumbers";
+import { appendOlderMessagePage } from "@/lib/whatsapp/messageCore";
 
 type Capabilities = { view: boolean; manage: boolean; assign: boolean; close: boolean };
 type Conversation = {
@@ -151,7 +152,7 @@ export default function WhatsAppInboxPage() {
     if (!selectedId || !messageCursor) return;
     try {
       const data = await whatsappApi<{ messages: Message[]; nextCursor: string | null }>(`/api/whatsapp/conversations/${selectedId}/messages?cursor=${encodeURIComponent(messageCursor)}`);
-      setMessages((current) => [...data.messages, ...current]); setMessageCursor(data.nextCursor);
+      setMessages((current) => appendOlderMessagePage(current, data.messages)); setMessageCursor(data.nextCursor);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Older messages could not be loaded."); }
   };
 

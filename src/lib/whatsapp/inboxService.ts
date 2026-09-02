@@ -7,6 +7,7 @@ import { WhatsAppError } from "./errors";
 import { requireWhatsAppPermission, userHasPermission } from "./permissions";
 import { buildSearchTokens, searchToken } from "./search";
 import { buildManualAssociation } from "./associationCore";
+import { sortMessagePageNewestFirst } from "./messageCore";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const PAGE_SIZE = 30;
@@ -208,7 +209,7 @@ export async function listMessages(context: ServerUserContext, conversationId: s
   if (cursor) query = query.startAfter(Timestamp.fromMillis(cursor.milliseconds), cursor.id);
   const snapshot = await query.limit(51).get();
   const page = snapshot.docs.slice(0, 50);
-  const messages = page.map((document) => {
+  const messages = sortMessagePageNewestFirst(page.map((document) => {
     const data = document.data();
     return {
       id: document.id,
@@ -225,7 +226,7 @@ export async function listMessages(context: ServerUserContext, conversationId: s
       mediaIngestionStatus: data.mediaIngestionStatus || null,
       mediaFailureReason: data.mediaIngestionStatus === "failed" ? String(data.mediaFailureReason || "Media unavailable").slice(0, 200) : null,
     };
-  }).reverse();
+  }));
   const oldest = page.at(-1);
   return {
     messages,
