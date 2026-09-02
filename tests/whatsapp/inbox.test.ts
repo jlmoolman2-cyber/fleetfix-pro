@@ -4,6 +4,7 @@ import { buildSearchTokens, normalizeSearchValue, searchToken } from "../../src/
 import { normalizedPhoneValues } from "../../src/lib/whatsapp/phoneIndex.ts";
 import { assertEmulatorTarget } from "../../scripts/seed_whatsapp_emulator.mjs";
 import { userHasPermission } from "../../src/lib/whatsapp/permissions.ts";
+import { formatPhoneForDisplay } from "../../src/lib/whatsapp/phoneNumbers.ts";
 
 test("inbox search creates bounded normalized prefix tokens", () => {
   const tokens = buildSearchTokens(["Demo Logistics", "JOB-1001", "+27 82 123 4567"]);
@@ -16,6 +17,13 @@ test("inbox search creates bounded normalized prefix tokens", () => {
 
 test("phone indexing deduplicates normalized values", () => {
   assert.deepEqual(normalizedPhoneValues(["082 123 4567", "+27 82 123 4567", ""]), ["+27821234567"]);
+});
+
+test("South African WhatsApp numbers are formatted for display without changing their stored value", () => {
+  const normalized = "+27823206967";
+  assert.equal(formatPhoneForDisplay(normalized), "+27 82 320 6967");
+  assert.equal(normalized, "+27823206967");
+  assert.equal(formatPhoneForDisplay("+12025550123"), "+12025550123");
 });
 
 test("all inbox mutations remain explicitly permission-gated", () => {

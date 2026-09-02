@@ -6,6 +6,7 @@ import type { ServerUserContext } from "./auth";
 import { WhatsAppError } from "./errors";
 import { requireWhatsAppPermission, userHasPermission } from "./permissions";
 import { buildSearchTokens, searchToken } from "./search";
+import { buildManualAssociation } from "./associationCore";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const PAGE_SIZE = 30;
@@ -158,6 +159,45 @@ export async function getConversation(context: ServerUserContext, conversationId
   };
 }
 
+export async function findAssociationOptions(context: ServerUserContext, search: string) {
+  requireWhatsAppPermission(context.companyUser, "Manage conversations");
+  const needle = String(search || "").trim().toLowerCase().slice(0, 80);
+  if (needle.length < 2) return { customers: [] };
+  const needleDigits = needle.replace(/\D/g, "");
+  const matches = (value: string) => value.toLowerCase().includes(needle) ||
+    (needleDigits.length >= 3 && value.replace(/\D/g, "").includes(needleDigits));
+  const [customersSnapshot, contactsSnapshot] = await Promise.all([
+    adminDb.collection(`companies/${context.companyId}/customers`).limit(100).get(),
+    adminDb.collectionGroup("contacts").where("companyId", "==", context.companyId).limit(200).get(),
+  ]);
+  const contactsByCustomer = new Map<string, Array<{ id: string; name: string; phoneNumber: string }>>();
+  for (const contact of contactsSnapshot.docs) {
+    const path = contact.ref.path.split("/");
+    if (path[0] !== "companies" || path[1] !== context.companyId || path[2] !== "customers" || path[4] !== "contacts") continue;
+    const data = contact.data();
+    const customerId = path[3];
+    const option = {
+      id: contact.id,
+      name: String(data.name || data.contactName || "Contact"),
+      phoneNumber: String(data.mobile || data.whatsappNumberE164 || data.phone || data.contactNumber || ""),
+    };
+    const values = contactsByCustomer.get(customerId) || [];
+    values.push(option);
+    contactsByCustomer.set(customerId, values);
+  }
+  const customers = customersSnapshot.docs.flatMap((customer) => {
+    const data = customer.data();
+    const name = String(data.companyName || data.customerName || data.name || "Customer");
+    const phoneNumber = String(data.primaryContactNumber || data.whatsappNumberE164 || data.phone || data.contactNumber || "");
+    const contacts = contactsByCustomer.get(customer.id) || [];
+    const customerMatches = matches(`${name} ${phoneNumber}`);
+    const matchingContacts = contacts.filter((contact) => matches(`${contact.name} ${contact.phoneNumber}`));
+    if (!customerMatches && !matchingContacts.length) return [];
+    return [{ id: customer.id, name, phoneNumber, contacts: customerMatches ? contacts : matchingContacts }];
+  }).slice(0, 25);
+  return { customers };
+}
+
 export async function listMessages(context: ServerUserContext, conversationId: string, url: URL) {
   requireWhatsAppPermission(context.companyUser, "View conversations");
   const conversation = await conversationDocument(context, conversationId);
@@ -215,6 +255,7 @@ export async function updateConversation(context: ServerUserContext, conversatio
   if (!body || typeof body !== "object") throw new WhatsAppError("INVALID_INPUT", "Conversation action is invalid.", 400);
   const input = body as Record<string, unknown>;
   const action = String(input.action || "");
+  if (action === "associate-customer-contact") requireWhatsAppPermission(context.companyUser, "Manage conversations");
   const conversation = await conversationDocument(context, conversationId);
   const conversationRef = conversation.ref;
 
@@ -277,6 +318,28 @@ export async function updateConversation(context: ServerUserContext, conversatio
         userId: context.uid, previousJobId: data.jobId || null, previousJobNumber: data.jobNumber || null,
         jobId: job.id, jobNumber: String(jobData.jobNumber || job.id), createdAt: FieldValue.serverTimestamp(),
       });
+    });
+  } else if (action === "associate-customer-contact") {
+    const customerId = requireId(input.customerId, "Customer ID");
+    const contactId = input.contactId ? requireId(input.contactId, "Contact ID") : null;
+    const customerRef = adminDb.doc(`companies/${context.companyId}/customers/${customerId}`);
+    const contactRef = contactId ? customerRef.collection("contacts").doc(contactId) : null;
+    await adminDb.runTransaction(async (transaction) => {
+      const current = await transaction.get(conversationRef);
+      const customer = await transaction.get(customerRef);
+      const contact = contactRef ? await transaction.get(contactRef) : null;
+      if (!current.exists) throw new WhatsAppError("NOT_FOUND", "This WhatsApp conversation no longer exists.", 404);
+      const association = buildManualAssociation({
+        conversationId,
+        conversation: current.data() || {},
+        customerId,
+        customer: { id: customer.id, exists: customer.exists, data: customer.data() || {} },
+        contactId,
+        contact: contact ? { id: contact.id, exists: contact.exists, customerId: contact.ref.parent.parent!.id, data: contact.data() || {} } : null,
+        actorUserId: context.uid,
+      });
+      transaction.update(conversationRef, { ...association.conversationUpdate, updatedAt: FieldValue.serverTimestamp() });
+      transaction.create(auditRef(context.companyId), { companyId: context.companyId, ...association.audit, createdAt: FieldValue.serverTimestamp() });
     });
   } else if (action === "close" || action === "reopen") {
     requireWhatsAppPermission(context.companyUser, "Close conversations");

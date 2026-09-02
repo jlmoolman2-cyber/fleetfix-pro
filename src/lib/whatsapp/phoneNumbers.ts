@@ -18,3 +18,13 @@ export function normalizeE164(value: string, defaultCountryCode = "+27"): string
   }
   return normalized;
 }
+
+export function formatPhoneForDisplay(value: string): string {
+  const phoneNumber = String(value || "").trim();
+  const compact = phoneNumber.replace(/[\s()-]/g, "");
+  const southAfricanNumber = compact.match(/^\+27(\d{2})(\d{3})(\d{4})$/);
+  if (southAfricanNumber) {
+    return `+27 ${southAfricanNumber[1]} ${southAfricanNumber[2]} ${southAfricanNumber[3]}`;
+  }
+  return phoneNumber;
+}

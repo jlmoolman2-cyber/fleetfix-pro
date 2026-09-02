@@ -3,7 +3,7 @@ import "server-only";
 import type { Timestamp } from "firebase-admin/firestore";
 
 export type ConversationStatus = "open" | "closed" | "unassigned";
-export type LinkMethod = "existing_conversation" | "contact_phone" | "customer_phone" | "single_active_job" | "explicit_job_number" | "unknown_number" | "multiple_active_jobs";
+export type LinkMethod = "existing_conversation" | "contact_phone" | "customer_phone" | "single_active_job" | "explicit_job_number" | "unknown_number" | "multiple_active_jobs" | "manual";
 
 export type WhatsAppConversation = {
   companyId: string;
