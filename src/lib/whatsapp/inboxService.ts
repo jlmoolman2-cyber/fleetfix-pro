@@ -8,6 +8,7 @@ import { requireWhatsAppPermission, userHasPermission } from "./permissions";
 import { buildSearchTokens, searchToken } from "./search";
 import { buildManualAssociation } from "./associationCore";
 import { sortMessagePageNewestFirst } from "./messageCore";
+import { outboundFlags } from "./outboundCore";
 import { assertJobCustomer, JOB_LINKED_AUDIT_ACTION, JOB_UNLINKED_AUDIT_ACTION, MESSAGE_JOB_ASSIGNED_AUDIT_ACTION, jobMatchesSearch, linkJob, linkedJobsFromConversation, messageJobContextJson, needsJobAssignmentForLatest, unlinkJob, type LinkedJob } from "./jobAssociationCore";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
@@ -83,11 +84,16 @@ function decodeCursor(value: string | null): { milliseconds: number; id: string 
 }
 
 function capabilities(context: ServerUserContext) {
+  const flags = outboundFlags(process.env);
+  const staging = (process.env.FLEETFIX_ENVIRONMENT || process.env.NEXT_PUBLIC_FLEETFIX_ENVIRONMENT) === "staging";
   return {
     view: userHasPermission(context.companyUser, "View conversations"),
     manage: userHasPermission(context.companyUser, "Manage conversations"),
     assign: userHasPermission(context.companyUser, "Assign conversations"),
     close: userHasPermission(context.companyUser, "Close conversations"),
+    manualOutbound: staging && flags.manual && userHasPermission(context.companyUser, "Send messages"),
+    automationOutbound: false,
+    templateOutbound: false,
   };
 }
 

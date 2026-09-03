@@ -6,6 +6,7 @@ import type { ServerUserContext } from "./auth";
 import { localConfigurationChecks } from "./diagnosticsCore";
 import { MetaWhatsAppClient } from "./metaClient";
 import { requireWhatsAppPermission } from "./permissions";
+import { outboundFlags } from "./outboundCore";
 import { getWhatsAppSecret, whatsappSecretPresence } from "./secrets";
 
 export async function whatsappDiagnostics(context: ServerUserContext, liveProbe: boolean) {
@@ -51,5 +52,7 @@ export async function whatsappDiagnostics(context: ServerUserContext, liveProbe:
     const waba = await client.request<Record<string, unknown>>(`${data.whatsappBusinessAccountId}?fields=id,name,timezone_id`, { method: "GET" });
     meta = { phone, waba, idsMatch: phone.id === data.phoneNumberId && waba.id === data.whatsappBusinessAccountId, coexistence: phone.is_on_biz_app === true ? "reported-active" : "not-confirmed" };
   }
-  return { ready: checks.every((check) => check.passed), checks, monitoring, meta, coexistenceEligibility: liveProbe ? meta?.coexistence : "unconfirmed-requires-supported-meta-onboarding-check", outboundEnabled: false };
+  const flags = outboundFlags(process.env);
+  const staging = (process.env.FLEETFIX_ENVIRONMENT || process.env.NEXT_PUBLIC_FLEETFIX_ENVIRONMENT) === "staging";
+  return { ready: checks.every((check) => check.passed), checks, monitoring, meta, coexistenceEligibility: liveProbe ? meta?.coexistence : "unconfirmed-requires-supported-meta-onboarding-check", outboundEnabled: staging && flags.manual, outbound: { manual: staging && flags.manual, automation: flags.automation, templates: flags.templates } };
 }

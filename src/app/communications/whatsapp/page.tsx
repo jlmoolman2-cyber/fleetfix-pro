@@ -8,7 +8,7 @@ import { formatPhoneForDisplay } from "@/lib/whatsapp/phoneNumbers";
 import { appendOlderMessagePage } from "@/lib/whatsapp/messageCore";
 import { mergeLiveMessagePage } from "@/lib/whatsapp/liveUpdatesCore";
 
-type Capabilities = { view: boolean; manage: boolean; assign: boolean; close: boolean };
+type Capabilities = { view: boolean; manage: boolean; assign: boolean; close: boolean; manualOutbound: boolean; automationOutbound: boolean; templateOutbound: boolean };
 type Conversation = {
   id: string; customerId: string | null; contactId: string | null; customerName: string; contactName: string;
   jobId: string | null; jobNumber: string | null; phoneNumber: string; assignedUserId: string | null;
@@ -58,7 +58,7 @@ export default function WhatsAppInboxPage() {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [currentUserId, setCurrentUserId] = useState("");
   const [jobs, setJobs] = useState<JobOption[]>([]);
-  const [capabilities, setCapabilities] = useState<Capabilities>({ view: false, manage: false, assign: false, close: false });
+  const [capabilities, setCapabilities] = useState<Capabilities>({ view: false, manage: false, assign: false, close: false, manualOutbound: false, automationOutbound: false, templateOutbound: false });
   const [scope, setScope] = useState("all");
   const [search, setSearch] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
@@ -80,6 +80,9 @@ export default function WhatsAppInboxPage() {
   const [associationContactId, setAssociationContactId] = useState("");
   const [associationLoading, setAssociationLoading] = useState(false);
   const [associationSearched, setAssociationSearched] = useState(false);
+  const [outboundText, setOutboundText] = useState("");
+  const [outboundJobId, setOutboundJobId] = useState("");
+  const sendingRef = useRef(false);
 
   const listQuery = useMemo(() => {
     const params = new URLSearchParams({ scope });
@@ -113,6 +116,7 @@ export default function WhatsAppInboxPage() {
       const detail = await whatsappApi<{ conversation: Conversation; users: UserOption[]; jobs: JobOption[]; capabilities: Capabilities }>(`/api/whatsapp/conversations/${id}?jobSearch=${encodeURIComponent(jobsNeedle)}`);
       const messageData = await whatsappApi<{ messages: Message[]; nextCursor: string | null }>(`/api/whatsapp/conversations/${id}/messages`);
       setSelected(detail.conversation); setUsers(detail.users); setJobs(detail.jobs); setCapabilities(detail.capabilities);
+      setOutboundJobId(detail.conversation.linkedJobs.length === 1 ? detail.conversation.linkedJobs[0].jobId : "");
       setMessages(messageData.messages); setMessageCursor(messageData.nextCursor);
       if (detail.conversation.unreadCount > 0) {
         await whatsappApi(`/api/whatsapp/conversations/${id}`, { method: "PATCH", body: JSON.stringify({ action: "read" }) });
@@ -229,6 +233,23 @@ export default function WhatsAppInboxPage() {
     finally { setSaving(false); }
   };
 
+  const sendManualMessage = async () => {
+    const text = outboundText.trim();
+    if (!selectedId || !capabilities.manualOutbound || !text || sendingRef.current) return;
+    sendingRef.current = true;
+    try {
+      setSaving(true); setError("");
+      const result = await whatsappApi<{ state: string; persistencePending: boolean }>(`/api/whatsapp/conversations/${selectedId}/messages`, { method: "POST", body: JSON.stringify({ text, clientRequestId: crypto.randomUUID(), jobId: outboundJobId || null }) });
+      if (result.state === "accepted") {
+        setOutboundText("");
+        if (result.persistencePending) setError("Meta accepted the message; FleetFix is still reconciling the local inbox record.");
+      } else if (result.state === "outcome_unknown") setError("The send outcome could not be confirmed. Do not resend automatically; an administrator must review it.");
+      else if (result.state === "processing") setError("This message request is still processing.");
+      else setError("Meta did not accept the WhatsApp message.");
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "The WhatsApp message could not be sent."); }
+    finally { sendingRef.current = false; setSaving(false); }
+  };
+
   const loadOlderMessages = async () => {
     if (!selectedId || !messageCursor) return;
     try {
@@ -303,7 +324,7 @@ export default function WhatsAppInboxPage() {
             {messages.map((message) => { const key = dateKey(message.timestamp); const showDate = key !== previousDate; previousDate = key; return <div key={message.id}>{showDate && <div className="my-4 text-center"><span className="rounded-lg bg-white/90 px-3 py-1.5 text-[10px] font-bold text-slate-500 shadow-sm">{key}</span></div>}<div className={`mb-2 flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}><div className={`max-w-[82%] rounded-xl px-3 py-2 text-sm shadow-sm ${message.direction === "outgoing" ? "rounded-tr-sm bg-[#d9fdd3]" : "rounded-tl-sm bg-white"}`}>{message.jobNumber && <Link href={`/jobs/${message.jobId}`} className="mb-1 inline-flex rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-black text-blue-700">{message.jobNumber}</Link>}{message.mediaType && <div className="mb-2 rounded-lg border border-black/10 bg-black/5 p-2 text-xs"><strong className="capitalize">{message.mediaType}</strong><div className="mt-1 text-slate-500">{message.mediaFilename || message.mediaMimeType || "WhatsApp attachment"}</div>{message.mediaIngestionStatus === "stored" && <button onClick={async () => { if (!selectedId) return; try { const response = await whatsappApi<Blob>(`/api/whatsapp/conversations/${selectedId}/messages/${message.id}/media`, { rawResponse: true } as RequestInit & { rawResponse: true }); void response; } catch { setError("The attachment could not be opened."); } }} className="mt-2 font-black text-blue-700">Attachment stored securely</button>}{message.mediaIngestionStatus === "pending" && <div className="mt-1 font-bold text-amber-700">Processing attachment…</div>}{message.mediaIngestionStatus === "failed" && <div className="mt-1 font-bold text-red-700">{message.mediaFailureReason || "Attachment unavailable"}</div>}</div>}<p className="whitespace-pre-wrap break-words text-slate-800">{message.messageText}</p><div className="mt-1 flex items-center justify-end gap-1 text-[10px] text-slate-500">{capabilities.manage && selected.linkedJobs.length > 0 && <select value={message.jobId || ""} disabled={saving} onChange={(event) => void assignMessageJob(message.id, event.target.value)} aria-label={`Assign job to message at ${fullTime(message.timestamp)}`} className="mr-1 max-w-28 rounded border bg-white px-1 py-0.5 text-[9px] font-bold"><option value="" disabled>Assign job</option>{selected.linkedJobs.map((job) => <option key={job.jobId} value={job.jobId}>{job.jobNumber}</option>)}</select>}<span>{fullTime(message.timestamp)}</span>{message.direction === "outgoing" && <StatusIcon status={message.status} />}</div>{message.status === "failed" && <p className="mt-1 text-[10px] font-bold text-red-600">{message.failureReason || "Message failed"}</p>}</div></div></div>; })}
             {messages.length === 0 && <div className="mt-20 text-center text-slate-500"><MessageCircle className="mx-auto h-10 w-10 text-slate-300" /><h2 className="mt-3 font-black">No messages</h2><p className="mt-1 text-sm">This conversation does not contain any messages yet.</p></div>}
           </div>
-          <footer className="border-t bg-white p-3"><div className="flex items-center gap-3 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-500"><LockKeyhole size={17} /><span className="flex-1">Outbound WhatsApp sending will be enabled after Meta connection.</span><button disabled className="rounded-lg bg-slate-300 px-4 py-2 text-xs font-black text-white">Send</button></div></footer>
+          <footer className="border-t bg-white p-3">{capabilities.manualOutbound ? <div className="flex flex-wrap items-end gap-2"><label className="min-w-36 text-[10px] font-black uppercase text-slate-500">Job context<select value={outboundJobId} onChange={(event) => setOutboundJobId(event.target.value)} disabled={saving} className="mt-1 block h-10 w-full rounded-lg border bg-white px-2 text-xs font-bold"><option value="">No specific job</option>{selected.linkedJobs.map((job) => <option key={job.jobId} value={job.jobId}>{job.jobNumber}</option>)}</select></label><textarea value={outboundText} onChange={(event) => setOutboundText(event.target.value)} maxLength={4096} rows={2} placeholder="Type a manual WhatsApp reply" className="min-w-52 flex-1 resize-none rounded-xl border bg-white px-3 py-2 text-sm" /><button type="button" disabled={saving || !outboundText.trim()} onClick={() => void sendManualMessage()} className="h-10 rounded-lg bg-emerald-600 px-4 text-xs font-black text-white disabled:bg-slate-300">{saving ? "Sending…" : "Send"}</button></div> : <div className="flex items-center gap-3 rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-500"><LockKeyhole size={17} /><span className="flex-1">Preview mode · Manual outbound sending disabled</span><button disabled className="rounded-lg bg-slate-300 px-4 py-2 text-xs font-black text-white">Send</button></div>}</footer>
         </>}
       </div>
     </section>

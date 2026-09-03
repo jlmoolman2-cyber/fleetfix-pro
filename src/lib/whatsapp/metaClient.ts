@@ -1,6 +1,7 @@
 import "server-only";
 
 import { WhatsAppError } from "./errors";
+import { assertManualOutboundEnabled } from "./outboundCore";
 
 export type MetaClientConfig = {
   accessToken: string;
@@ -48,6 +49,26 @@ export class MetaWhatsAppClient {
       throw new WhatsAppError("META_ERROR", "Meta could not complete the WhatsApp request.", 502);
     }
     return body as T;
+  }
+
+  async sendText(recipient: string, text: string): Promise<{ messages: Array<{ id: string }> }> {
+    assertManualOutboundEnabled(process.env);
+    let response: Response;
+    try {
+      response = await fetch(`https://graph.facebook.com/${this.config.graphApiVersion}/${this.config.phoneNumberId}/messages`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${this.config.accessToken}`, "content-type": "application/json" },
+        body: JSON.stringify({ messaging_product: "whatsapp", recipient_type: "individual", to: recipient, type: "text", text: { preview_url: false, body: text } }),
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      throw new WhatsAppError("META_ERROR", "Meta send outcome could not be confirmed.", 502);
+    }
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new WhatsAppError("META_ERROR", "Meta rejected the WhatsApp message.", 502, { metaStatus: response.status, metaCode: body?.error?.code == null ? null : String(body.error.code) });
+    const metaMessageId = body?.messages?.[0]?.id;
+    if (typeof metaMessageId !== "string" || !metaMessageId) throw new WhatsAppError("META_ERROR", "Meta send outcome could not be confirmed.", 502);
+    return { messages: [{ id: metaMessageId }] };
   }
 
   async download(url: string): Promise<{ bytes: Uint8Array; contentType: string }> {
