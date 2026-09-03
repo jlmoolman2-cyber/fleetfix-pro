@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Timestamp } from "firebase-admin/firestore";
+import type { LinkedJob } from "./jobAssociationCore";
 
 export type ConversationStatus = "open" | "closed" | "unassigned";
 export type LinkMethod = "existing_conversation" | "contact_phone" | "customer_phone" | "single_active_job" | "explicit_job_number" | "unknown_number" | "multiple_active_jobs" | "manual";
@@ -11,6 +12,7 @@ export type WhatsAppConversation = {
   contactId: string | null;
   jobId: string | null;
   jobNumber: string | null;
+  linkedJobs: LinkedJob[];
   phoneNumber: string;
   phoneNumberNormalized: string;
   phoneNumberWaId: string;

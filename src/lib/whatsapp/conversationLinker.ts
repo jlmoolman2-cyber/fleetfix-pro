@@ -5,6 +5,7 @@ import { adminDb } from "@/lib/firebaseAdmin";
 import { chooseJobLink, extractJobNumberCandidates, isActiveJob, uniqueEntityMatch, type ActiveJobCandidate } from "./linkingCore";
 import type { LinkMethod } from "./models";
 import { normalizedPhoneValues } from "./phoneIndex";
+import { existingConversationJobContext, linkedJobsFromConversation, type LinkedJob } from "./jobAssociationCore";
 
 export type ConversationLink = {
   existingConversationId: string | null;
@@ -14,6 +15,8 @@ export type ConversationLink = {
   contactName: string | null;
   jobId: string | null;
   jobNumber: string | null;
+  conversationJobId: string | null;
+  conversationJobNumber: string | null;
   linkConfidence: "high" | "medium" | "none";
   linkMethod: LinkMethod;
   needsJobAssignment: boolean;
@@ -117,17 +120,31 @@ export async function linkIncomingConversation(input: {
   const existing = await findExistingConversation(input.companyId, input.waId);
   if (existing) {
     const data = existing.data();
+    const entity: EntityMatch | null = data.customerId ? {
+      customerId: String(data.customerId), contactId: data.contactId ? String(data.contactId) : null,
+      customerName: String(data.customerName || ""), contactName: String(data.contactName || ""),
+      source: data.contactId ? "contact_phone" : "customer_phone",
+    } : null;
+    const storedJobs = linkedJobsFromConversation(data);
+    const explicit = await validatedExplicitJob(input.companyId, input.messageText, entity, input.normalizedPhone, input.defaultCountryCode);
+    const explicitLinked: LinkedJob | null = explicit ? {
+      jobId: explicit.id, jobNumber: explicit.jobNumber, vehicleRegistration: "", fleetNumber: "", status: "",
+      bookingAt: null, description: "", location: "",
+    } : null;
+    const context = existingConversationJobContext(storedJobs, explicitLinked);
     return {
       existingConversationId: existing.id,
       customerId: data.customerId || null,
       contactId: data.contactId || null,
       customerName: data.customerName || null,
       contactName: data.contactName || null,
-      jobId: data.jobId || null,
-      jobNumber: data.jobNumber || null,
+      jobId: context.messageJobId,
+      jobNumber: context.messageJobNumber,
+      conversationJobId: context.conversationJobId,
+      conversationJobNumber: context.conversationJobNumber,
       linkConfidence: data.linkConfidence || "high",
       linkMethod: "existing_conversation",
-      needsJobAssignment: data.needsJobAssignment === true,
+      needsJobAssignment: context.needsJobAssignment || data.needsJobAssignment === true,
     };
   }
 
@@ -141,6 +158,7 @@ export async function linkIncomingConversation(input: {
   if (!entity && !explicitJob) {
     return {
       existingConversationId: null, customerId: null, contactId: null, customerName: null, contactName: null, jobId: null, jobNumber: null,
+      conversationJobId: null, conversationJobNumber: null,
       linkConfidence: "none", linkMethod: "unknown_number", needsJobAssignment: false,
     };
   }
@@ -154,6 +172,8 @@ export async function linkIncomingConversation(input: {
     contactName: entity?.contactName || null,
     jobId: choice.job?.id || null,
     jobNumber: choice.job?.jobNumber || null,
+    conversationJobId: choice.job?.id || null,
+    conversationJobNumber: choice.job?.jobNumber || null,
     linkConfidence: choice.job ? "high" : entity ? "medium" : "none",
     linkMethod: choice.method || entity?.source || "unknown_number",
     needsJobAssignment: choice.needsJobAssignment,

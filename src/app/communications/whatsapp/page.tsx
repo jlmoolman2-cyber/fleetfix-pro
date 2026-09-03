@@ -13,11 +13,12 @@ type Conversation = {
   id: string; customerId: string | null; contactId: string | null; customerName: string; contactName: string;
   jobId: string | null; jobNumber: string | null; phoneNumber: string; assignedUserId: string | null;
   assignedUserName: string; status: string; unreadCount: number; lastMessageText: string; lastMessageAt: string | null;
-  needsJobAssignment: boolean; serviceWindowExpiresAt: string | null;
+  needsJobAssignment: boolean; serviceWindowExpiresAt: string | null; linkedJobs: LinkedJobOption[];
 };
 type Message = { id: string; direction: "incoming" | "outgoing"; messageText: string; status: string; timestamp: string | null; failureReason: string | null; mediaType: string | null; mediaFilename: string | null; mediaMimeType: string | null; mediaSize: number; mediaIngestionStatus: string | null; mediaFailureReason: string | null };
 type UserOption = { id: string; name: string };
-type JobOption = { id: string; jobNumber: string; vehicleRegistration: string; fleetNumber: string; status: string; active: boolean };
+type LinkedJobOption = { jobId: string; jobNumber: string; vehicleRegistration: string; fleetNumber: string; status: string; bookingAt: string | null; description: string; location: string };
+type JobOption = { id: string; jobNumber: string; vehicleRegistration: string; fleetNumber: string; status: string; active: boolean; bookingAt: string | null; description: string; location: string };
 type ContactOption = { id: string; name: string; phoneNumber: string };
 type CustomerOption = { id: string; name: string; phoneNumber: string; contacts: ContactOption[] };
 
@@ -71,6 +72,7 @@ export default function WhatsAppInboxPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [jobSearch, setJobSearch] = useState("");
+  const [jobLinkOpen, setJobLinkOpen] = useState(false);
   const [associationOpen, setAssociationOpen] = useState(false);
   const [associationSearch, setAssociationSearch] = useState("");
   const [associationCustomers, setAssociationCustomers] = useState<CustomerOption[]>([]);
@@ -173,7 +175,7 @@ export default function WhatsAppInboxPage() {
     };
   }, [selectedId]); // The stream reconnects only when the selected conversation changes. eslint-disable-line react-hooks/exhaustive-deps
 
-  const openConversation = (id: string) => { setSelectedId(id); setJobSearch(""); setAssociationOpen(false); void loadConversation(id); };
+  const openConversation = (id: string) => { setSelectedId(id); setJobSearch(""); setJobLinkOpen(false); setAssociationOpen(false); void loadConversation(id); };
 
   const mutate = async (body: Record<string, unknown>) => {
     if (!selectedId) return false;
@@ -202,6 +204,17 @@ export default function WhatsAppInboxPage() {
     if (!associationCustomerId) { setError("Select a customer before associating this conversation."); return; }
     const succeeded = await mutate({ action: "associate-customer-contact", customerId: associationCustomerId, contactId: associationContactId || undefined });
     if (succeeded) { setAssociationOpen(false); setAssociationSearch(""); setAssociationCustomers([]); setAssociationCustomerId(""); setAssociationContactId(""); }
+  };
+
+  const linkSelectedJob = async (jobId: string) => {
+    if (jobId && await mutate({ action: "link-job", jobId })) { setJobLinkOpen(false); setJobSearch(""); }
+  };
+
+  const unlinkSelectedJob = async (job: LinkedJobOption) => {
+    const jobId = job.jobId;
+    if (window.confirm(`Remove ${job.jobNumber} from this WhatsApp conversation? The FleetFix job will not be deleted.`)) {
+      await mutate({ action: "unlink-job", jobId });
+    }
   };
 
   const loadOlderMessages = async () => {
@@ -234,7 +247,7 @@ export default function WhatsAppInboxPage() {
           {conversations.map((conversation) => <button key={conversation.id} onClick={() => openConversation(conversation.id)} className={`w-full border-b px-4 py-3 text-left transition hover:bg-slate-50 ${selectedId === conversation.id ? "bg-emerald-50" : conversation.unreadCount ? "bg-blue-50/50" : "bg-white"}`}>
             <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="truncate text-sm font-black text-slate-900">{conversation.contactName || conversation.customerName || formatPhoneForDisplay(conversation.phoneNumber)}</div>{conversation.customerId && <div className="truncate text-[11px] font-semibold text-slate-500">{formatPhoneForDisplay(conversation.phoneNumber)}</div>}{conversation.contactName && conversation.customerName && <div className="truncate text-[11px] font-semibold text-slate-500">{conversation.customerName}</div>}</div><span className={`shrink-0 text-[10px] ${conversation.unreadCount ? "font-black text-emerald-700" : "text-slate-400"}`}>{shortDate(conversation.lastMessageAt)}</span></div>
             <div className="mt-1 flex items-center justify-between gap-2"><p className="truncate text-xs text-slate-500">{conversation.lastMessageText || "No messages"}</p>{conversation.unreadCount > 0 && <span className="min-w-5 shrink-0 rounded-full bg-emerald-600 px-1.5 py-0.5 text-center text-[10px] font-black text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span>}</div>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] font-black uppercase tracking-wide">{conversation.jobNumber && <span className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-700">{conversation.jobNumber}</span>}{conversation.status === "unassigned" && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Unassigned</span>}{conversation.needsJobAssignment && <span className="rounded bg-red-100 px-1.5 py-0.5 text-red-700">Job required</span>}{conversation.status === "closed" && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-slate-600">Closed</span>}</div>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] font-black uppercase tracking-wide">{conversation.linkedJobs.map((job) => <span key={job.jobId} className="rounded bg-blue-100 px-1.5 py-0.5 text-blue-700">{job.jobNumber}</span>)}{conversation.status === "unassigned" && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-800">Unassigned</span>}{conversation.needsJobAssignment && <span className="rounded bg-red-100 px-1.5 py-0.5 text-red-700">Job required</span>}{conversation.status === "closed" && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-slate-600">Closed</span>}</div>
           </button>)}
           {!loading && conversations.length === 0 && <div className="p-10 text-center"><Inbox className="mx-auto h-9 w-9 text-slate-300" /><h2 className="mt-3 text-sm font-black text-slate-700">No WhatsApp conversations</h2><p className="mt-1 text-xs text-slate-500">No conversations match the selected filters.</p></div>}
           {loading && <div className="flex items-center justify-center p-8 text-slate-400"><Loader2 className="animate-spin" /></div>}
@@ -248,7 +261,10 @@ export default function WhatsAppInboxPage() {
             <div className="flex items-center gap-3"><button onClick={() => { setSelectedId(null); setSelected(null); }} className="md:hidden" aria-label="Back to conversations"><ArrowLeft /></button><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><UserRound size={19} /></div><div className="min-w-0 flex-1"><div className="truncate font-black">{selected.contactName || selected.customerName || formatPhoneForDisplay(selected.phoneNumber)}</div>{selected.customerId && <div className="truncate text-xs text-slate-500">{formatPhoneForDisplay(selected.phoneNumber)}</div>}{selected.contactName && selected.customerName && <div className="truncate text-xs font-semibold text-slate-500">{selected.customerName}</div>}</div><span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${selected.status === "closed" ? "bg-slate-200 text-slate-600" : "bg-emerald-100 text-emerald-700"}`}>{selected.status}</span></div>
             <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3 text-xs">
               {selected.customerId ? <Link href={selected.contactId ? `/customers/${selected.customerId}/contacts/${selected.contactId}` : `/customers/${selected.customerId}`} className="font-black text-blue-700 hover:underline">{selected.contactName || selected.customerName}</Link> : <span className="rounded bg-amber-100 px-2 py-1 font-black text-amber-800">Not associated</span>}
-              {selected.jobId ? <Link href={`/jobs/${selected.jobId}`} className="inline-flex items-center gap-1 rounded bg-blue-100 px-2 py-1 font-black text-blue-700"><BriefcaseBusiness size={13} />{selected.jobNumber}</Link> : <span className="rounded bg-red-100 px-2 py-1 font-black text-red-700">Job assignment required</span>}
+              <span className="font-black text-slate-600">Jobs:</span>
+              {selected.linkedJobs.map((job) => <span key={job.jobId} className="inline-flex items-center rounded bg-blue-100 text-blue-700"><Link href={`/jobs/${job.jobId}`} className="inline-flex items-center gap-1 px-2 py-1 font-black"><BriefcaseBusiness size={13} />{job.jobNumber}</Link>{capabilities.manage && <button type="button" disabled={saving} onClick={() => void unlinkSelectedJob(job)} aria-label={`Unlink ${job.jobNumber}`} title={`Unlink ${job.jobNumber}`} className="border-l border-blue-200 px-1.5 py-1 font-black disabled:opacity-50">×</button>}</span>)}
+              {selected.linkedJobs.length === 0 && <span className="rounded bg-red-100 px-2 py-1 font-black text-red-700">Job assignment required</span>}
+              {capabilities.manage && <button type="button" disabled={saving} onClick={() => setJobLinkOpen((open) => !open)} className="rounded border bg-white px-2 py-1 font-black text-blue-700 disabled:opacity-50">+ Link Job</button>}
               <span className="text-slate-500">Assigned: <strong>{selected.assignedUserName || "Unassigned"}</strong></span>
               <span className={`rounded px-2 py-1 font-black ${selected.serviceWindowExpiresAt && new Date(selected.serviceWindowExpiresAt) > new Date() ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{selected.serviceWindowExpiresAt && new Date(selected.serviceWindowExpiresAt) > new Date() ? `Service window open until ${fullTime(selected.serviceWindowExpiresAt)}` : "Service window closed"}</span>
             </div>
@@ -268,7 +284,7 @@ export default function WhatsAppInboxPage() {
               {associationSearched && !associationLoading && associationCustomers.length === 0 && <p className="mt-3 text-xs font-semibold text-slate-500">No matching customers or contacts. Try another name or phone number.</p>}
               <div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setAssociationOpen(false)} disabled={saving} className="rounded-lg border bg-white px-3 py-2 text-xs font-bold disabled:opacity-50">Cancel</button><button type="button" onClick={() => void associateCustomerContact()} disabled={saving || !associationCustomerId} className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50">{saving ? "Associating…" : "Associate"}</button></div>
             </div>}
-            {(!selected.jobId || selected.needsJobAssignment) && capabilities.manage && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3"><div className="text-xs font-black uppercase text-red-700">Job assignment required</div><div className="mt-2 flex gap-2"><input value={jobSearch} onChange={(event) => setJobSearch(event.target.value)} placeholder="Job, registration or fleet no." className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-xs" /><button onClick={() => void loadConversation(selected.id, jobSearch)} className="rounded-lg bg-white px-3 text-xs font-black text-blue-700">Find</button></div><select defaultValue="" onChange={(event) => { if (event.target.value) void mutate({ action: "assign-job", jobId: event.target.value }); }} className="mt-2 w-full rounded-lg border bg-white p-2 text-xs font-bold"><option value="">Select the correct FleetFix job</option>{jobs.map((job) => <option key={job.id} value={job.id}>{job.jobNumber} · {job.vehicleRegistration || "No registration"} · {job.fleetNumber || "No fleet no."} · {job.status}</option>)}</select></div>}
+            {(jobLinkOpen || selected.needsJobAssignment || selected.linkedJobs.length === 0) && capabilities.manage && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3"><div className="flex items-center justify-between"><div className="text-xs font-black uppercase text-red-700">{selected.linkedJobs.length ? "Link another job" : "Job assignment required"}</div>{jobLinkOpen && <button type="button" onClick={() => setJobLinkOpen(false)} aria-label="Close job lookup"><X size={15} /></button>}</div><div className="mt-2 flex gap-2"><input value={jobSearch} onChange={(event) => setJobSearch(event.target.value)} placeholder="Job, registration or fleet no." className="min-w-0 flex-1 rounded-lg border bg-white px-3 py-2 text-xs" /><button onClick={() => void loadConversation(selected.id, jobSearch)} className="rounded-lg bg-white px-3 text-xs font-black text-blue-700">Find</button></div><select value="" disabled={saving} onChange={(event) => void linkSelectedJob(event.target.value)} className="mt-2 w-full rounded-lg border bg-white p-2 text-xs font-bold"><option value="">Select the correct FleetFix job</option>{jobs.filter((job) => !selected.linkedJobs.some((linked) => linked.jobId === job.id)).map((job) => <option key={job.id} value={job.id}>{job.jobNumber} · {job.vehicleRegistration || "No registration"} · {job.fleetNumber || "No fleet no."} · {job.status}{job.bookingAt ? ` · ${new Date(job.bookingAt).toLocaleString("en-ZA")}` : ""}{job.description ? ` · ${job.description}` : ""}{job.location ? ` · ${job.location}` : ""}</option>)}</select></div>}
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4 md:px-8">
             {messageCursor && <div className="mb-4 text-center"><button onClick={() => void loadOlderMessages()} className="rounded-full bg-white px-4 py-2 text-xs font-black text-blue-700 shadow">Load older messages</button></div>}

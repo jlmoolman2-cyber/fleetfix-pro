@@ -11,6 +11,7 @@ import { normalizeE164 } from "./phoneNumbers";
 import { serviceWindowExpiry } from "./statusCore";
 import type { MetaWebhookPayload } from "./schemas";
 import { mediaDescriptor } from "./mediaService";
+import { linkedJobsFromConversation } from "./jobAssociationCore";
 
 function metaDate(timestamp?: string): Date {
   const milliseconds = Number(timestamp) * 1000;
@@ -60,14 +61,21 @@ export async function processIncomingMessage(input: {
     if (existingMessage.exists) return "duplicate";
     const conversationSnapshot = await transaction.get(conversationRef);
     const existingConversation = conversationSnapshot.data() || {};
+    const linkedJobs = linkedJobsFromConversation(existingConversation);
+    const initialLinkedJobs = !conversationSnapshot.exists && link.conversationJobId ? [{
+      jobId: link.conversationJobId, jobNumber: link.conversationJobNumber || link.conversationJobId,
+      vehicleRegistration: "", fleetNumber: "", status: "", bookingAt: null, description: "", location: "",
+    }] : [];
+    const conversationJobs = linkedJobs.length ? linkedJobs : initialLinkedJobs;
     transaction.set(conversationRef, {
       companyId: input.companyId,
       customerId: link.customerId,
       contactId: link.contactId,
       customerName: link.customerName,
       contactName: link.contactName,
-      jobId: link.jobId,
-      jobNumber: link.jobNumber,
+      jobId: link.conversationJobId,
+      jobNumber: link.conversationJobNumber,
+      ...(conversationSnapshot.exists ? {} : { linkedJobs: initialLinkedJobs }),
       phoneNumber: normalizedPhone,
       phoneNumberNormalized: normalizedPhone,
       phoneNumberWaId: waId,
@@ -82,7 +90,8 @@ export async function processIncomingMessage(input: {
       linkConfidence: link.linkConfidence,
       linkMethod: link.linkMethod,
       needsJobAssignment: link.needsJobAssignment,
-      searchTokens: buildSearchTokens([link.customerName, link.contactName, normalizedPhone, waId, link.jobNumber]),
+      searchTokens: buildSearchTokens([link.customerName, link.contactName, normalizedPhone, waId,
+        ...conversationJobs.flatMap((job) => [job.jobNumber, job.vehicleRegistration, job.fleetNumber])]),
       createdAt: existingConversation.createdAt || FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
       closedAt: null,

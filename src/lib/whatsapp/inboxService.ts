@@ -8,6 +8,7 @@ import { requireWhatsAppPermission, userHasPermission } from "./permissions";
 import { buildSearchTokens, searchToken } from "./search";
 import { buildManualAssociation } from "./associationCore";
 import { sortMessagePageNewestFirst } from "./messageCore";
+import { assertJobCustomer, JOB_LINKED_AUDIT_ACTION, JOB_UNLINKED_AUDIT_ACTION, jobMatchesSearch, linkJob, linkedJobsFromConversation, unlinkJob, type LinkedJob } from "./jobAssociationCore";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const PAGE_SIZE = 30;
@@ -22,6 +23,40 @@ function iso(value: unknown): string | null {
   if (value instanceof Timestamp) return value.toDate().toISOString();
   if (value && typeof (value as { toDate?: unknown }).toDate === "function") return (value as { toDate(): Date }).toDate().toISOString();
   return null;
+}
+
+function vehicleRegistration(job: DocumentData): string {
+  return String(job.vehicleRegNo || job.vehicleRegistration || job.registration || job.regNo || job.vehicle?.vehicleReg || job.vehicle?.regNo || "");
+}
+
+function fleetNumber(job: DocumentData): string {
+  return String(job.vehicleFleetNo || job.fleetNumber || job.fleetNo || job.vehicle?.fleetNo || job.vehicle?.fleetNumber || "");
+}
+
+function jobLocation(job: DocumentData): string {
+  return String(job.locationDetails?.name || (typeof job.location === "string" ? job.location : job.location?.name) || "");
+}
+
+function linkedJobJson(job: LinkedJob) {
+  return { ...job, bookingAt: iso(job.bookingAt) };
+}
+
+function linkedJobFromDocument(id: string, job: DocumentData): LinkedJob {
+  return {
+    jobId: id,
+    jobNumber: String(job.jobNumber || id),
+    vehicleRegistration: vehicleRegistration(job),
+    fleetNumber: fleetNumber(job),
+    status: String(job.status || ""),
+    bookingAt: job.bookingAt || job.bookedAt || job.createdAt || job.dateBooked || null,
+    description: String(job.description || job.complaint || ""),
+    location: jobLocation(job),
+  };
+}
+
+function conversationSearchValues(data: DocumentData, linkedJobs: LinkedJob[], customerName = String(data.customerName || "")) {
+  return [customerName, data.contactName, data.phoneNumberNormalized, data.phoneNumberWaId,
+    ...linkedJobs.flatMap((job) => [job.jobNumber, job.vehicleRegistration, job.fleetNumber])];
 }
 
 function encodeCursor(data: { milliseconds: number; id: string }): string {
@@ -47,6 +82,7 @@ function capabilities(context: ServerUserContext) {
 }
 
 function conversationJson(id: string, data: DocumentData) {
+  const linkedJobs = linkedJobsFromConversation(data).map(linkedJobJson);
   return {
     id,
     customerId: data.customerId || null,
@@ -66,6 +102,7 @@ function conversationJson(id: string, data: DocumentData) {
     serviceWindowExpiresAt: iso(data.serviceWindowExpiresAt),
     needsJobAssignment: data.needsJobAssignment === true,
     linkMethod: String(data.linkMethod || ""),
+    linkedJobs,
   };
 }
 
@@ -139,16 +176,20 @@ export async function getConversation(context: ServerUserContext, conversationId
   const needle = jobSearch.trim().toLowerCase().slice(0, 80);
   const jobs = jobsSnapshot.docs.map((document) => {
     const job = document.data();
+    const linked = linkedJobFromDocument(document.id, job);
     return {
-      id: document.id,
-      jobNumber: String(job.jobNumber || document.id),
+      id: linked.jobId,
+      jobNumber: linked.jobNumber,
       customerId: job.customerId || null,
-      vehicleRegistration: String(job.vehicleRegistration || job.registration || ""),
-      fleetNumber: String(job.fleetNumber || ""),
-      status: String(job.status || ""),
+      vehicleRegistration: linked.vehicleRegistration,
+      fleetNumber: linked.fleetNumber,
+      status: linked.status,
       active: job.isClosed !== true && job.isCompleted !== true && job.archived !== true,
+      bookingAt: iso(linked.bookingAt) || String(linked.bookingAt || "") || null,
+      description: linked.description,
+      location: linked.location,
     };
-  }).filter((job) => !needle || `${job.jobNumber} ${job.vehicleRegistration} ${job.fleetNumber}`.toLowerCase().includes(needle)).slice(0, 30);
+  }).filter((job) => jobMatchesSearch({ ...job, jobId: job.id, bookingAt: job.bookingAt }, needle)).slice(0, 30);
   return {
     conversation: conversationJson(conversation.id, data),
     users: usersSnapshot.docs.filter((document) => document.data().active !== false).map((document) => ({
@@ -285,39 +326,66 @@ export async function updateConversation(context: ServerUserContext, conversatio
       transaction.update(conversationRef, { assignedUserId: userId, assignedUserName: userName, assignedAt: FieldValue.serverTimestamp(), assignedBy: context.uid, updatedAt: FieldValue.serverTimestamp() });
       transaction.create(auditRef(context.companyId), { companyId: context.companyId, action: "CONVERSATION_ASSIGNED", result: "success", conversationId, userId: context.uid, previousAssignedUserId: previous, assignedUserId: userId, createdAt: FieldValue.serverTimestamp() });
     });
-  } else if (action === "assign-job") {
+  } else if (action === "assign-job" || action === "link-job") {
     requireWhatsAppPermission(context.companyUser, "Manage conversations");
     const jobId = requireId(input.jobId, "Job ID");
-    const job = await adminDb.doc(`companies/${context.companyId}/jobs/${jobId}`).get();
-    if (!job.exists) throw new WhatsAppError("NOT_FOUND", "The selected FleetFix job no longer exists.", 404);
-    const currentData = conversation.data() || {};
-    const jobData = job.data() || {};
-    if (currentData.customerId && jobData.customerId !== currentData.customerId) {
-      throw new WhatsAppError("FORBIDDEN", "The selected job does not belong to this conversation's customer.", 403);
-    }
-    let customerName = currentData.customerName || "";
-    if (!currentData.customerId && jobData.customerId) {
-      const customer = await adminDb.doc(`companies/${context.companyId}/customers/${jobData.customerId}`).get();
-      customerName = String(customer.data()?.companyName || customer.data()?.name || "");
-    }
+    const jobRef = adminDb.doc(`companies/${context.companyId}/jobs/${jobId}`);
     await adminDb.runTransaction(async (transaction) => {
       const current = await transaction.get(conversationRef);
+      const job = await transaction.get(jobRef);
+      if (!current.exists) throw new WhatsAppError("NOT_FOUND", "This WhatsApp conversation no longer exists.", 404);
+      if (!job.exists) throw new WhatsAppError("NOT_FOUND", "The selected FleetFix job no longer exists.", 404);
       const data = current.data() || {};
+      const jobData = job.data() || {};
+      assertJobCustomer(data.customerId, jobData.customerId);
+      let customerName = String(data.customerName || "");
+      if (!data.customerId && jobData.customerId) {
+        const customer = await transaction.get(adminDb.doc(`companies/${context.companyId}/customers/${jobData.customerId}`));
+        if (!customer.exists) throw new WhatsAppError("NOT_FOUND", "The selected job's customer no longer exists.", 404);
+        customerName = String(customer.data()?.companyName || customer.data()?.customerName || customer.data()?.name || "");
+      }
+      const linkedJob = linkedJobFromDocument(job.id, jobData);
+      const association = linkJob(linkedJobsFromConversation(data), linkedJob);
       transaction.update(conversationRef, {
-        jobId: job.id,
-        jobNumber: String(jobData.jobNumber || job.id),
+        linkedJobs: association.linkedJobs,
+        jobId: association.jobId,
+        jobNumber: association.jobNumber,
         customerId: data.customerId || jobData.customerId || null,
         customerName,
-        needsJobAssignment: false,
+        needsJobAssignment: association.needsJobAssignment,
         jobAssignedAt: FieldValue.serverTimestamp(),
         jobAssignedBy: context.uid,
-        searchTokens: buildSearchTokens([customerName, data.contactName, data.phoneNumberNormalized, jobData.jobNumber, jobData.vehicleRegistration, jobData.fleetNumber]),
+        searchTokens: buildSearchTokens(conversationSearchValues(data, association.linkedJobs, customerName)),
         updatedAt: FieldValue.serverTimestamp(),
       });
       transaction.create(auditRef(context.companyId), {
-        companyId: context.companyId, action: "CONVERSATION_JOB_ASSIGNED", result: "success", conversationId,
-        userId: context.uid, previousJobId: data.jobId || null, previousJobNumber: data.jobNumber || null,
-        jobId: job.id, jobNumber: String(jobData.jobNumber || job.id), createdAt: FieldValue.serverTimestamp(),
+        companyId: context.companyId, action: JOB_LINKED_AUDIT_ACTION, result: "success", conversationId,
+        userId: context.uid, jobId: linkedJob.jobId, jobNumber: linkedJob.jobNumber, createdAt: FieldValue.serverTimestamp(),
+      });
+    });
+  } else if (action === "unlink-job") {
+    requireWhatsAppPermission(context.companyUser, "Manage conversations");
+    const jobId = requireId(input.jobId, "Job ID");
+    await adminDb.runTransaction(async (transaction) => {
+      const current = await transaction.get(conversationRef);
+      if (!current.exists) throw new WhatsAppError("NOT_FOUND", "This WhatsApp conversation no longer exists.", 404);
+      const data = current.data() || {};
+      const previous = linkedJobsFromConversation(data);
+      const removed = previous.find((job) => job.jobId === jobId);
+      const association = unlinkJob(previous, jobId);
+      transaction.update(conversationRef, {
+        linkedJobs: association.linkedJobs,
+        jobId: association.jobId,
+        jobNumber: association.jobNumber,
+        needsJobAssignment: association.needsJobAssignment,
+        searchTokens: buildSearchTokens(conversationSearchValues(data, association.linkedJobs)),
+        jobUnlinkedAt: FieldValue.serverTimestamp(),
+        jobUnlinkedBy: context.uid,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      transaction.create(auditRef(context.companyId), {
+        companyId: context.companyId, action: JOB_UNLINKED_AUDIT_ACTION, result: "success", conversationId,
+        userId: context.uid, jobId, jobNumber: removed?.jobNumber || null, createdAt: FieldValue.serverTimestamp(),
       });
     });
   } else if (action === "associate-customer-contact") {
