@@ -6,6 +6,7 @@ import { assertEmulatorTarget } from "../../scripts/seed_whatsapp_emulator.mjs";
 import { userHasPermission } from "../../src/lib/whatsapp/permissions.ts";
 import { formatPhoneForDisplay } from "../../src/lib/whatsapp/phoneNumbers.ts";
 import { appendOlderMessagePage, sortMessagePageNewestFirst } from "../../src/lib/whatsapp/messageCore.ts";
+import { createCleanupBag, mergeLiveMessagePage } from "../../src/lib/whatsapp/liveUpdatesCore.ts";
 
 test("inbox search creates bounded normalized prefix tokens", () => {
   const tokens = buildSearchTokens(["Demo Logistics", "JOB-1001", "+27 82 123 4567"]);
@@ -51,6 +52,28 @@ test("older cursor pages append without duplicating or skipping messages", () =>
   const older = [{ id: "message-3" }, { id: "message-2" }, { id: "message-1" }];
   const merged = appendOlderMessagePage(current, older);
   assert.deepEqual(merged.map((message) => message.id), ["message-5", "message-4", "message-3", "message-2", "message-1"]);
+});
+
+test("live message pages replace changed messages and retain loaded history", () => {
+  const current = [{ id: "new", status: "sent" }, { id: "old", status: "received" }];
+  const live = [{ id: "newer", status: "received" }, { id: "new", status: "delivered" }];
+  assert.deepEqual(mergeLiveMessagePage(live, current), [
+    { id: "newer", status: "received" },
+    { id: "new", status: "delivered" },
+    { id: "old", status: "received" },
+  ]);
+});
+
+test("live update cleanup releases every resource exactly once", () => {
+  const calls: string[] = [];
+  const cleanups = createCleanupBag();
+  cleanups.add(() => { calls.push("first"); });
+  cleanups.add(() => { calls.push("failing"); throw new Error("cleanup failed"); });
+  cleanups.add(() => { calls.push("last"); });
+  cleanups.close();
+  cleanups.close();
+  cleanups.add(() => { calls.push("late"); });
+  assert.deepEqual(calls, ["first", "failing", "last", "late"]);
 });
 
 test("all inbox mutations remain explicitly permission-gated", () => {

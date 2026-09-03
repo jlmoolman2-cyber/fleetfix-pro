@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, BriefcaseBusiness, Check, CheckCheck, CircleAlert, Inbox, Loader2, LockKeyhole, MessageCircle, Search, UserRound, X } from "lucide-react";
-import { whatsappApi } from "@/lib/whatsapp/clientApi";
+import { subscribeWhatsAppLive, whatsappApi } from "@/lib/whatsapp/clientApi";
 import { formatPhoneForDisplay } from "@/lib/whatsapp/phoneNumbers";
 import { appendOlderMessagePage } from "@/lib/whatsapp/messageCore";
+import { mergeLiveMessagePage } from "@/lib/whatsapp/liveUpdatesCore";
 
 type Capabilities = { view: boolean; manage: boolean; assign: boolean; close: boolean };
 type Conversation = {
@@ -98,6 +99,9 @@ export default function WhatsAppInboxPage() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to load WhatsApp conversations."); }
     finally { setLoading(false); }
   }, [listQuery, nextCursor]);
+  const loadListRef = useRef(loadList);
+
+  useEffect(() => { loadListRef.current = loadList; }, [loadList]);
 
   useEffect(() => { void loadList(false); }, [listQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -116,6 +120,58 @@ export default function WhatsAppInboxPage() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to open this conversation."); }
     finally { setLoadingConversation(false); }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    let refreshListRequested = false;
+    let refreshMessagesRequested = false;
+    const refreshSelected = async (id: string, includeDetail: boolean) => {
+      try {
+        const [detail, messageData] = await Promise.all([
+          includeDetail ? whatsappApi<{ conversation: Conversation; users: UserOption[]; jobs: JobOption[]; capabilities: Capabilities }>(`/api/whatsapp/conversations/${id}`) : Promise.resolve(null),
+          whatsappApi<{ messages: Message[]; nextCursor: string | null }>(`/api/whatsapp/conversations/${id}/messages`),
+        ]);
+        if (!active) return;
+        if (detail) {
+          setSelected(detail.conversation); setUsers(detail.users); setJobs(detail.jobs); setCapabilities(detail.capabilities);
+          if (detail.conversation.unreadCount > 0) {
+            await whatsappApi(`/api/whatsapp/conversations/${id}`, { method: "PATCH", body: JSON.stringify({ action: "read" }) });
+            if (!active) return;
+            setSelected((current) => current?.id === id ? { ...current, unreadCount: 0 } : current);
+            setConversations((current) => current.map((item) => item.id === id ? { ...item, unreadCount: 0 } : item));
+          }
+        }
+        setMessages((current) => mergeLiveMessagePage(messageData.messages, current));
+        setMessageCursor((current) => current || messageData.nextCursor);
+      } catch (reason) {
+        if (active) setError(reason instanceof Error ? reason.message : "WhatsApp live updates could not be refreshed.");
+      }
+    };
+    const flushRefresh = () => {
+      refreshTimer = null;
+      const updateList = refreshListRequested;
+      const updateMessages = refreshMessagesRequested;
+      refreshListRequested = false;
+      refreshMessagesRequested = false;
+      if (updateList) void loadListRef.current(false);
+      if (selectedId && (updateList || updateMessages)) void refreshSelected(selectedId, updateList);
+    };
+    const unsubscribe = subscribeWhatsAppLive(
+      `/api/whatsapp/live${selectedId ? `?conversationId=${encodeURIComponent(selectedId)}` : ""}`,
+      (event) => {
+        if (event === "conversations") refreshListRequested = true;
+        if (event === "messages") refreshMessagesRequested = true;
+        if (!refreshTimer) refreshTimer = setTimeout(flushRefresh, 100);
+      },
+      (reason) => { if (active) setError(reason.message); },
+    );
+    return () => {
+      active = false;
+      unsubscribe();
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [selectedId]); // The stream reconnects only when the selected conversation changes. eslint-disable-line react-hooks/exhaustive-deps
 
   const openConversation = (id: string) => { setSelectedId(id); setJobSearch(""); setAssociationOpen(false); void loadConversation(id); };
 
