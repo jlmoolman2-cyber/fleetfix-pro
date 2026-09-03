@@ -8,6 +8,8 @@ import {
   jobMatchesSearch,
   linkJob,
   linkedJobsFromConversation,
+  messageJobContextJson,
+  needsJobAssignmentForLatest,
   unlinkJob,
   type LinkedJob,
 } from "../../src/lib/whatsapp/jobAssociationCore.ts";
@@ -64,8 +66,31 @@ test("multiple jobs do not guess message context, while an explicit job tags onl
     messageJobId: null, messageJobNumber: null, conversationJobId: null, conversationJobNumber: null, needsJobAssignment: true,
   });
   assert.deepEqual(existingConversationJobContext(jobs, jobs[1]), {
-    messageJobId: "job-2", messageJobNumber: "NJ00002", conversationJobId: null, conversationJobNumber: null, needsJobAssignment: true,
+    messageJobId: "job-2", messageJobNumber: "NJ00002", conversationJobId: null, conversationJobNumber: null, needsJobAssignment: false,
   });
+  assert.deepEqual(jobs.map((item) => item.jobNumber), ["NJ00001", "NJ00002"]);
+});
+
+test("invalid, unlinked, ambiguous, and absent references do not guess among multiple linked jobs", () => {
+  const jobs = [job("job-1", "NJ00001"), job("job-2", "NJ00002")];
+  const unlinked = job("job-3", "NJ00003");
+  assert.equal(existingConversationJobContext(jobs, unlinked, true).messageJobId, null);
+  assert.equal(existingConversationJobContext(jobs, null, true).messageJobId, null);
+  assert.equal(existingConversationJobContext(jobs, null, false).messageJobId, null);
+  assert.equal(existingConversationJobContext(jobs, unlinked, true).needsJobAssignment, true);
+});
+
+test("one linked job retains the existing default context rule unless an unresolved explicit reference is present", () => {
+  const linked = job("job-1", "NJ00001");
+  assert.equal(existingConversationJobContext([linked], null, false).messageJobId, "job-1");
+  assert.equal(existingConversationJobContext([linked], null, true).messageJobId, null);
+});
+
+test("JOB REQUIRED follows latest inbound message resolution rather than linked-job count alone", () => {
+  const jobs = [job("job-1", "NJ00001"), job("job-2", "NJ00002")];
+  assert.equal(needsJobAssignmentForLatest(jobs, "job-2"), false);
+  assert.equal(needsJobAssignmentForLatest(jobs, null), true);
+  assert.equal(needsJobAssignmentForLatest(jobs, "cross-tenant-job"), true);
 });
 
 test("association updates are additive and therefore preserve conversation identity and message history", () => {
@@ -80,4 +105,9 @@ test("association updates are additive and therefore preserve conversation ident
 test("link and unlink use explicit auditable conversation events", () => {
   assert.equal(JOB_LINKED_AUDIT_ACTION, "CONVERSATION_JOB_LINKED");
   assert.equal(JOB_UNLINKED_AUDIT_ACTION, "CONVERSATION_JOB_UNLINKED");
+});
+
+test("message job badge data is returned without inventing a context", () => {
+  assert.deepEqual(messageJobContextJson({ jobId: "job-2", jobNumber: "NJ00002" }), { jobId: "job-2", jobNumber: "NJ00002" });
+  assert.deepEqual(messageJobContextJson({}), { jobId: null, jobNumber: null });
 });

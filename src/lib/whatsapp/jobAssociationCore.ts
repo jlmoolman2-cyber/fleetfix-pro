@@ -2,6 +2,7 @@ import { WhatsAppError } from "./errors.ts";
 
 export const JOB_LINKED_AUDIT_ACTION = "CONVERSATION_JOB_LINKED";
 export const JOB_UNLINKED_AUDIT_ACTION = "CONVERSATION_JOB_UNLINKED";
+export const MESSAGE_JOB_ASSIGNED_AUDIT_ACTION = "MESSAGE_JOB_CONTEXT_ASSIGNED";
 
 export type LinkedJob = {
   jobId: string;
@@ -27,21 +28,31 @@ export function assertJobCustomer(conversationCustomerId: unknown, jobCustomerId
   }
 }
 
-export function existingConversationJobContext(existing: LinkedJob[], explicitJob?: LinkedJob | null) {
+export function needsJobAssignmentForLatest(linkedJobs: LinkedJob[], latestInboundJobId: unknown): boolean {
+  if (linkedJobs.length <= 1) return false;
+  return !latestInboundJobId || !linkedJobs.some((job) => job.jobId === String(latestInboundJobId));
+}
+
+export function messageJobContextJson(data: Record<string, unknown>) {
+  return { jobId: data.jobId || null, jobNumber: data.jobNumber || null };
+}
+
+export function existingConversationJobContext(existing: LinkedJob[], explicitJob?: LinkedJob | null, hasExplicitReference = Boolean(explicitJob)) {
+  const linkedExplicit = explicitJob && existing.find((job) => job.jobId === explicitJob.jobId);
   if (existing.length > 1) return {
-    messageJobId: explicitJob?.jobId || null,
-    messageJobNumber: explicitJob?.jobNumber || null,
+    messageJobId: linkedExplicit?.jobId || null,
+    messageJobNumber: linkedExplicit?.jobNumber || null,
     conversationJobId: null,
     conversationJobNumber: null,
-    needsJobAssignment: true,
+    needsJobAssignment: !linkedExplicit,
   };
   const only = existing[0] || null;
   return {
-    messageJobId: explicitJob?.jobId || only?.jobId || null,
-    messageJobNumber: explicitJob?.jobNumber || only?.jobNumber || null,
+    messageJobId: hasExplicitReference ? linkedExplicit?.jobId || null : only?.jobId || null,
+    messageJobNumber: hasExplicitReference ? linkedExplicit?.jobNumber || null : only?.jobNumber || null,
     conversationJobId: only?.jobId || null,
     conversationJobNumber: only?.jobNumber || null,
-    needsJobAssignment: false,
+    needsJobAssignment: hasExplicitReference && !linkedExplicit,
   };
 }
 

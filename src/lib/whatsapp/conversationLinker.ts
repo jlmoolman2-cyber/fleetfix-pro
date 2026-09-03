@@ -94,7 +94,7 @@ async function validatedExplicitJob(
   defaultCountryCode: string,
 ): Promise<ActiveJobCandidate | null> {
   const candidates = extractJobNumberCandidates(text);
-  if (!candidates.length) return null;
+  if (candidates.length !== 1) return null;
   const snapshot = await adminDb.collection(`companies/${companyId}/jobs`).where("jobNumber", "in", candidates).get();
   const reasonable = snapshot.docs.filter((document) => {
     const job = document.data();
@@ -126,12 +126,13 @@ export async function linkIncomingConversation(input: {
       source: data.contactId ? "contact_phone" : "customer_phone",
     } : null;
     const storedJobs = linkedJobsFromConversation(data);
+    const hasExplicitReference = extractJobNumberCandidates(input.messageText).length > 0;
     const explicit = await validatedExplicitJob(input.companyId, input.messageText, entity, input.normalizedPhone, input.defaultCountryCode);
     const explicitLinked: LinkedJob | null = explicit ? {
       jobId: explicit.id, jobNumber: explicit.jobNumber, vehicleRegistration: "", fleetNumber: "", status: "",
       bookingAt: null, description: "", location: "",
     } : null;
-    const context = existingConversationJobContext(storedJobs, explicitLinked);
+    const context = existingConversationJobContext(storedJobs, explicitLinked, hasExplicitReference);
     return {
       existingConversationId: existing.id,
       customerId: data.customerId || null,
@@ -144,7 +145,7 @@ export async function linkIncomingConversation(input: {
       conversationJobNumber: context.conversationJobNumber,
       linkConfidence: data.linkConfidence || "high",
       linkMethod: "existing_conversation",
-      needsJobAssignment: context.needsJobAssignment || data.needsJobAssignment === true,
+      needsJobAssignment: context.needsJobAssignment,
     };
   }
 

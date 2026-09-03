@@ -8,7 +8,7 @@ import { requireWhatsAppPermission, userHasPermission } from "./permissions";
 import { buildSearchTokens, searchToken } from "./search";
 import { buildManualAssociation } from "./associationCore";
 import { sortMessagePageNewestFirst } from "./messageCore";
-import { assertJobCustomer, JOB_LINKED_AUDIT_ACTION, JOB_UNLINKED_AUDIT_ACTION, jobMatchesSearch, linkJob, linkedJobsFromConversation, unlinkJob, type LinkedJob } from "./jobAssociationCore";
+import { assertJobCustomer, JOB_LINKED_AUDIT_ACTION, JOB_UNLINKED_AUDIT_ACTION, MESSAGE_JOB_ASSIGNED_AUDIT_ACTION, jobMatchesSearch, linkJob, linkedJobsFromConversation, messageJobContextJson, needsJobAssignmentForLatest, unlinkJob, type LinkedJob } from "./jobAssociationCore";
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const PAGE_SIZE = 30;
@@ -57,6 +57,16 @@ function linkedJobFromDocument(id: string, job: DocumentData): LinkedJob {
 function conversationSearchValues(data: DocumentData, linkedJobs: LinkedJob[], customerName = String(data.customerName || "")) {
   return [customerName, data.contactName, data.phoneNumberNormalized, data.phoneNumberWaId,
     ...linkedJobs.flatMap((job) => [job.jobNumber, job.vehicleRegistration, job.fleetNumber])];
+}
+
+function recentMessagesQuery(companyId: string, conversationId: string) {
+  return adminDb.collection(`companies/${companyId}/whatsappMessages`)
+    .where("conversationId", "==", conversationId)
+    .orderBy("metaTimestamp", "desc").orderBy(FieldPath.documentId(), "desc").limit(50);
+}
+
+function latestInboundJobId(snapshot: FirebaseFirestore.QuerySnapshot): unknown {
+  return snapshot.docs.find((document) => document.data().direction === "incoming")?.data().jobId || null;
 }
 
 function encodeCursor(data: { milliseconds: number; id: string }): string {
@@ -257,6 +267,7 @@ export async function listMessages(context: ServerUserContext, conversationId: s
       direction: data.direction === "outgoing" ? "outgoing" : "incoming",
       messageType: String(data.messageType || "text"),
       messageText: String(data.messageText || "").slice(0, 4096),
+      ...messageJobContextJson(data),
       status: String(data.status || "received"),
       timestamp: iso(data.metaTimestamp || data.createdAt),
       failureReason: data.status === "failed" ? String(data.failureReason || "Message failed").slice(0, 200) : null,
@@ -344,6 +355,7 @@ export async function updateConversation(context: ServerUserContext, conversatio
         if (!customer.exists) throw new WhatsAppError("NOT_FOUND", "The selected job's customer no longer exists.", 404);
         customerName = String(customer.data()?.companyName || customer.data()?.customerName || customer.data()?.name || "");
       }
+      const recentMessages = await transaction.get(recentMessagesQuery(context.companyId, conversationId));
       const linkedJob = linkedJobFromDocument(job.id, jobData);
       const association = linkJob(linkedJobsFromConversation(data), linkedJob);
       transaction.update(conversationRef, {
@@ -352,7 +364,7 @@ export async function updateConversation(context: ServerUserContext, conversatio
         jobNumber: association.jobNumber,
         customerId: data.customerId || jobData.customerId || null,
         customerName,
-        needsJobAssignment: association.needsJobAssignment,
+        needsJobAssignment: needsJobAssignmentForLatest(association.linkedJobs, latestInboundJobId(recentMessages)),
         jobAssignedAt: FieldValue.serverTimestamp(),
         jobAssignedBy: context.uid,
         searchTokens: buildSearchTokens(conversationSearchValues(data, association.linkedJobs, customerName)),
@@ -370,6 +382,7 @@ export async function updateConversation(context: ServerUserContext, conversatio
       const current = await transaction.get(conversationRef);
       if (!current.exists) throw new WhatsAppError("NOT_FOUND", "This WhatsApp conversation no longer exists.", 404);
       const data = current.data() || {};
+      const recentMessages = await transaction.get(recentMessagesQuery(context.companyId, conversationId));
       const previous = linkedJobsFromConversation(data);
       const removed = previous.find((job) => job.jobId === jobId);
       const association = unlinkJob(previous, jobId);
@@ -377,7 +390,7 @@ export async function updateConversation(context: ServerUserContext, conversatio
         linkedJobs: association.linkedJobs,
         jobId: association.jobId,
         jobNumber: association.jobNumber,
-        needsJobAssignment: association.needsJobAssignment,
+        needsJobAssignment: needsJobAssignmentForLatest(association.linkedJobs, latestInboundJobId(recentMessages)),
         searchTokens: buildSearchTokens(conversationSearchValues(data, association.linkedJobs)),
         jobUnlinkedAt: FieldValue.serverTimestamp(),
         jobUnlinkedBy: context.uid,
@@ -432,6 +445,41 @@ export async function updateConversation(context: ServerUserContext, conversatio
     throw new WhatsAppError("INVALID_INPUT", "Conversation action is not supported.", 400);
   }
   return getConversation(context, conversationId);
+}
+
+export async function updateMessageJobContext(context: ServerUserContext, conversationId: string, body: unknown) {
+  requireWhatsAppPermission(context.companyUser, "Manage conversations");
+  if (!body || typeof body !== "object") throw new WhatsAppError("INVALID_INPUT", "Message action is invalid.", 400);
+  const input = body as Record<string, unknown>;
+  if (input.action !== "assign-job-context") throw new WhatsAppError("INVALID_INPUT", "Message action is not supported.", 400);
+  const safeConversationId = requireId(conversationId, "Conversation ID");
+  const messageId = requireId(input.messageId, "Message ID");
+  const jobId = requireId(input.jobId, "Job ID");
+  const conversationRef = adminDb.doc(`companies/${context.companyId}/whatsappConversations/${safeConversationId}`);
+  const messageRef = adminDb.doc(`companies/${context.companyId}/whatsappMessages/${messageId}`);
+  const jobRef = adminDb.doc(`companies/${context.companyId}/jobs/${jobId}`);
+  let jobNumber = "";
+  let needsJobAssignment = true;
+  await adminDb.runTransaction(async (transaction) => {
+    const conversation = await transaction.get(conversationRef);
+    const message = await transaction.get(messageRef);
+    const job = await transaction.get(jobRef);
+    const recentMessages = await transaction.get(recentMessagesQuery(context.companyId, safeConversationId));
+    if (!conversation.exists) throw new WhatsAppError("NOT_FOUND", "This WhatsApp conversation no longer exists.", 404);
+    if (!message.exists || message.data()?.conversationId !== safeConversationId) throw new WhatsAppError("NOT_FOUND", "This WhatsApp message no longer exists.", 404);
+    if (!job.exists) throw new WhatsAppError("NOT_FOUND", "The selected FleetFix job no longer exists.", 404);
+    const linkedJobs = linkedJobsFromConversation(conversation.data() || {});
+    if (!linkedJobs.some((linked) => linked.jobId === jobId)) throw new WhatsAppError("FORBIDDEN", "The selected job is not linked to this conversation.", 403);
+    assertJobCustomer(conversation.data()?.customerId, job.data()?.customerId);
+    jobNumber = String(job.data()?.jobNumber || job.id);
+    const latestInbound = recentMessages.docs.find((document) => document.data().direction === "incoming");
+    const latestJobId = latestInbound?.id === messageId ? jobId : latestInbound?.data().jobId || null;
+    needsJobAssignment = needsJobAssignmentForLatest(linkedJobs, latestJobId);
+    transaction.update(messageRef, { jobId, jobNumber, jobContextMethod: "manual", jobContextUpdatedAt: FieldValue.serverTimestamp(), jobContextUpdatedBy: context.uid, updatedAt: FieldValue.serverTimestamp() });
+    transaction.update(conversationRef, { needsJobAssignment, updatedAt: FieldValue.serverTimestamp() });
+    transaction.create(auditRef(context.companyId), { companyId: context.companyId, action: MESSAGE_JOB_ASSIGNED_AUDIT_ACTION, result: "success", conversationId: safeConversationId, messageId, jobId, jobNumber, userId: context.uid, createdAt: FieldValue.serverTimestamp() });
+  });
+  return { message: { id: messageId, jobId, jobNumber }, needsJobAssignment };
 }
 
 export async function unreadSummary(context: ServerUserContext) {
