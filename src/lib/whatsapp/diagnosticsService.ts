@@ -46,11 +46,21 @@ export async function whatsappDiagnostics(context: ServerUserContext, liveProbe:
   };
   let meta: Record<string, unknown> | null = null;
   if (liveProbe) {
+    const environment = process.env.FLEETFIX_ENVIRONMENT || process.env.NEXT_PUBLIC_FLEETFIX_ENVIRONMENT;
+    if (environment !== "staging") throw new Error("Meta read diagnostics are available in staging only.");
     if (process.env.WHATSAPP_ALLOW_META_READ_PROBE !== "true") throw new Error("Meta read probe is locked. Set WHATSAPP_ALLOW_META_READ_PROBE=true for controlled commissioning only.");
     const client = new MetaWhatsAppClient({ accessToken: getWhatsAppSecret(String(data.accessTokenSecretName || "metaWhatsappAccessToken")), phoneNumberId: String(data.phoneNumberId || ""), graphApiVersion: String(data.graphApiVersion || process.env.META_GRAPH_API_VERSION || "") });
     const phone = await client.request<Record<string, unknown>>(`${data.phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,platform_type,is_on_biz_app`, { method: "GET" });
     const waba = await client.request<Record<string, unknown>>(`${data.whatsappBusinessAccountId}?fields=id,name,timezone_id`, { method: "GET" });
-    meta = { phone, waba, idsMatch: phone.id === data.phoneNumberId && waba.id === data.whatsappBusinessAccountId, coexistence: phone.is_on_biz_app === true ? "reported-active" : "not-confirmed" };
+    const digits = (value: unknown) => String(value || "").replace(/\D/g, "");
+    meta = {
+      authenticationPassed: true,
+      graphApiConnectivityPassed: true,
+      phoneNumberIdMatches: phone.id === data.phoneNumberId,
+      wabaIdMatches: waba.id === data.whatsappBusinessAccountId,
+      displayPhoneNumberMatches: digits(phone.display_phone_number) === digits(data.displayPhoneNumber),
+      coexistence: phone.is_on_biz_app === true ? "reported-active" : "not-confirmed",
+    };
   }
   const flags = outboundFlags(process.env);
   const staging = (process.env.FLEETFIX_ENVIRONMENT || process.env.NEXT_PUBLIC_FLEETFIX_ENVIRONMENT) === "staging";

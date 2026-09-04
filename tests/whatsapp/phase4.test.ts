@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { localConfigurationChecks, validGraphVersion, validMetaId } from "../../src/lib/whatsapp/diagnosticsCore.ts";
 import { assertServiceWindowOpen, isServiceWindowOpen, OUTBOUND_WHATSAPP_ENABLED } from "../../src/lib/whatsapp/serviceWindow.ts";
 import { MEDIA_MAX_ATTEMPTS, mediaFailureState, mediaRetryDelayMilliseconds } from "../../src/lib/whatsapp/mediaQueueCore.ts";
+import { readFileSync } from "node:fs";
 
 test("Meta identifiers and explicit Graph versions are validated locally", () => {
   assert.equal(validMetaId("1234567890"), true);
@@ -32,4 +33,16 @@ test("media queue retries exponentially and reaches a terminal failure", () => {
   assert.equal(mediaRetryDelayMilliseconds(2), 60_000);
   assert.equal(mediaFailureState(MEDIA_MAX_ATTEMPTS - 1), "retryable");
   assert.equal(mediaFailureState(MEDIA_MAX_ATTEMPTS), "failed");
+});
+
+test("read-only Meta diagnostics remain authenticated, permission-gated, staging-only, and use no send path", () => {
+  const route = readFileSync(new URL("../../src/app/api/whatsapp/diagnostics/route.ts", import.meta.url), "utf8");
+  const service = readFileSync(new URL("../../src/lib/whatsapp/diagnosticsService.ts", import.meta.url), "utf8");
+  const page = readFileSync(new URL("../../src/app/communications/whatsapp/page.tsx", import.meta.url), "utf8");
+  assert.match(route, /authenticateServerRequest/);
+  assert.match(service, /Manage WhatsApp settings/);
+  assert.match(service, /environment !== "staging"/);
+  assert.match(page, /capabilities\.diagnostics/);
+  assert.match(page, /\/api\/whatsapp\/diagnostics\?liveProbe=true/);
+  assert.doesNotMatch(route + service, /sendText\(|\/messages/);
 });

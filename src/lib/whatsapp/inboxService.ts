@@ -91,6 +91,7 @@ function capabilities(context: ServerUserContext) {
     manage: userHasPermission(context.companyUser, "Manage conversations"),
     assign: userHasPermission(context.companyUser, "Assign conversations"),
     close: userHasPermission(context.companyUser, "Close conversations"),
+    diagnostics: staging && userHasPermission(context.companyUser, "Manage WhatsApp settings"),
     manualOutbound: staging && flags.manual && userHasPermission(context.companyUser, "Send messages"),
     automationOutbound: false,
     templateOutbound: false,
