@@ -46,3 +46,16 @@ test("read-only Meta diagnostics remain authenticated, permission-gated, staging
   assert.match(page, /\/api\/whatsapp\/diagnostics\?liveProbe=true/);
   assert.doesNotMatch(route + service, /sendText\(|\/messages/);
 });
+
+test("read-only Meta diagnostics are inbox-level and independent of conversation selection", () => {
+  const page = readFileSync(new URL("../../src/app/communications/whatsapp/page.tsx", import.meta.url), "utf8");
+  const diagnosticsPanel = page.indexOf('data-testid="whatsapp-meta-diagnostics"');
+  const conversationLayout = page.indexOf('className={`${selectedId ? "flex" : "hidden md:flex"}');
+
+  assert.ok(diagnosticsPanel > -1, "diagnostics panel should be rendered by the inbox");
+  assert.ok(conversationLayout > -1, "selected/unselected conversation layout should still exist");
+  assert.ok(diagnosticsPanel < conversationLayout, "diagnostics panel must be outside the selected-conversation layout");
+  assert.equal(page.match(/data-testid="whatsapp-meta-diagnostics"/g)?.length, 1);
+  assert.match(page, /\{capabilities\.diagnostics && <details data-testid="whatsapp-meta-diagnostics"/);
+  assert.match(page, /\/api\/whatsapp\/diagnostics\?liveProbe=true/);
+});
