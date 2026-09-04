@@ -70,7 +70,7 @@ async function persistAcceptedRequest(context: ServerUserContext, requestRef: Fi
 }
 
 export async function sendManualText(context: ServerUserContext, conversationId: string, body: unknown) {
-  requireWhatsAppPermission(context.companyUser, "Send messages");
+  requireWhatsAppPermission(context.companyUser, "Send WhatsApp messages");
   assertManualOutboundEnabled(process.env);
   if (!ID_PATTERN.test(conversationId)) throw new WhatsAppError("INVALID_INPUT", "Conversation ID is invalid.", 400);
   const input = validateManualSendBody(body);

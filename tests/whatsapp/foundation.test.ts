@@ -37,8 +37,8 @@ test("webhook verification challenge requires the configured token", () => {
 });
 
 test("missing WhatsApp permission is denied by the permission predicate", () => {
-  assert.equal(userHasPermission({ primaryRole: "Technician", permissions: {} }, "View inbox"), false);
-  assert.equal(userHasPermission({ primaryRole: "Technician", permissions: { "View inbox": true } }, "View inbox"), true);
+  assert.equal(userHasPermission({ primaryRole: "Technician", permissions: {} }, "View WhatsApp"), false);
+  assert.equal(userHasPermission({ primaryRole: "Technician", permissions: { "View WhatsApp": true } }, "View WhatsApp"), true);
 });
 
 test("authenticated server request extracts its Firebase bearer token", () => {

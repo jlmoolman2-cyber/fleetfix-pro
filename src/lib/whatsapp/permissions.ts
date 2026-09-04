@@ -1,16 +1,17 @@
 import { WhatsAppError } from "./errors.ts";
 
 export const WHATSAPP_PERMISSIONS = [
-  "View inbox",
-  "View conversations",
-  "Send messages",
-  "Send templates",
-  "Manage conversations",
-  "Assign conversations",
-  "Close conversations",
+  "View WhatsApp",
+  "View WhatsApp conversations",
+  "Send WhatsApp messages",
+  "View WhatsApp media",
+  "Send WhatsApp templates",
+  "Manage WhatsApp conversations",
+  "Assign WhatsApp conversations",
+  "Close WhatsApp conversations",
   "Manage WhatsApp settings",
-  "Manage templates",
-  "Manage automation rules",
+  "Manage WhatsApp templates",
+  "Manage WhatsApp automation rules",
 ] as const;
 
 export type WhatsAppPermission = typeof WHATSAPP_PERMISSIONS[number];

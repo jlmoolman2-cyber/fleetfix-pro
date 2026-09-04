@@ -59,7 +59,7 @@ const navigationPermissions: Record<string, string> = {
   "/customers": "View customers",
   "/inventory": "View inventory",
   "/messages": "View messages",
-  "/communications/whatsapp": "View inbox",
+  "/communications/whatsapp": "View WhatsApp",
   "/notifications": "View notifications",
 };
 
@@ -131,7 +131,7 @@ export default function Navigation({
   }, [currentUser]);
 
   useEffect(() => {
-    if (!currentUser || permissions["View inbox"] !== true) { setWhatsappUnreadCount(0); return; }
+    if (!currentUser || permissions["View WhatsApp"] !== true) { setWhatsappUnreadCount(0); return; }
     let disposed = false;
     const refresh = async () => {
       try {

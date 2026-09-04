@@ -77,12 +77,12 @@ test("live update cleanup releases every resource exactly once", () => {
 });
 
 test("all inbox mutations remain explicitly permission-gated", () => {
-  const companyUser = { permissions: { "View inbox": true, "View conversations": true, "Manage conversations": false, "Assign conversations": true, "Close conversations": false } };
-  assert.equal(userHasPermission(companyUser, "View inbox"), true);
-  assert.equal(userHasPermission(companyUser, "View conversations"), true);
-  assert.equal(userHasPermission(companyUser, "Manage conversations"), false);
-  assert.equal(userHasPermission(companyUser, "Assign conversations"), true);
-  assert.equal(userHasPermission(companyUser, "Close conversations"), false);
+  const companyUser = { permissions: { "View WhatsApp": true, "View WhatsApp conversations": true, "Manage WhatsApp conversations": false, "Assign WhatsApp conversations": true, "Close WhatsApp conversations": false } };
+  assert.equal(userHasPermission(companyUser, "View WhatsApp"), true);
+  assert.equal(userHasPermission(companyUser, "View WhatsApp conversations"), true);
+  assert.equal(userHasPermission(companyUser, "Manage WhatsApp conversations"), false);
+  assert.equal(userHasPermission(companyUser, "Assign WhatsApp conversations"), true);
+  assert.equal(userHasPermission(companyUser, "Close WhatsApp conversations"), false);
 });
 
 test("seed guard accepts only an emulator host and isolated project", () => {

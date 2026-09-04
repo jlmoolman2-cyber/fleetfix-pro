@@ -10,9 +10,9 @@ import type { LiveUpdateEvent } from "./liveUpdatesCore";
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
 export async function authorizeLiveInbox(context: ServerUserContext, conversationId: string | null): Promise<string | null> {
-  requireWhatsAppPermission(context.companyUser, "View inbox");
+  requireWhatsAppPermission(context.companyUser, "View WhatsApp");
   if (!conversationId) return null;
-  requireWhatsAppPermission(context.companyUser, "View conversations");
+  requireWhatsAppPermission(context.companyUser, "View WhatsApp conversations");
   if (!ID_PATTERN.test(conversationId)) throw new WhatsAppError("INVALID_INPUT", "Conversation ID is invalid.", 400);
   const conversation = await adminDb.doc(`companies/${context.companyId}/whatsappConversations/${conversationId}`).get();
   if (!conversation.exists) throw new WhatsAppError("NOT_FOUND", "This WhatsApp conversation no longer exists.", 404);

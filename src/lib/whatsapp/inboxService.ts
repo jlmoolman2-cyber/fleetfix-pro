@@ -87,12 +87,13 @@ function capabilities(context: ServerUserContext) {
   const flags = outboundFlags(process.env);
   const staging = (process.env.FLEETFIX_ENVIRONMENT || process.env.NEXT_PUBLIC_FLEETFIX_ENVIRONMENT) === "staging";
   return {
-    view: userHasPermission(context.companyUser, "View conversations"),
-    manage: userHasPermission(context.companyUser, "Manage conversations"),
-    assign: userHasPermission(context.companyUser, "Assign conversations"),
-    close: userHasPermission(context.companyUser, "Close conversations"),
+    view: userHasPermission(context.companyUser, "View WhatsApp conversations"),
+    viewMedia: userHasPermission(context.companyUser, "View WhatsApp media"),
+    manage: userHasPermission(context.companyUser, "Manage WhatsApp conversations"),
+    assign: userHasPermission(context.companyUser, "Assign WhatsApp conversations"),
+    close: userHasPermission(context.companyUser, "Close WhatsApp conversations"),
     diagnostics: staging && userHasPermission(context.companyUser, "Manage WhatsApp settings"),
-    manualOutbound: staging && flags.manual && userHasPermission(context.companyUser, "Send messages"),
+    manualOutbound: staging && flags.manual && userHasPermission(context.companyUser, "Send WhatsApp messages"),
     automationOutbound: false,
     templateOutbound: false,
   };
@@ -124,7 +125,7 @@ function conversationJson(id: string, data: DocumentData) {
 }
 
 export async function listConversations(context: ServerUserContext, url: URL) {
-  requireWhatsAppPermission(context.companyUser, "View inbox");
+  requireWhatsAppPermission(context.companyUser, "View WhatsApp");
   const scope = url.searchParams.get("scope") || "all";
   const search = String(url.searchParams.get("search") || "").trim().slice(0, 80);
   const assignedUser = String(url.searchParams.get("assignedUser") || "");
@@ -183,7 +184,7 @@ async function conversationDocument(context: ServerUserContext, conversationId: 
 }
 
 export async function getConversation(context: ServerUserContext, conversationId: string, jobSearch = "") {
-  requireWhatsAppPermission(context.companyUser, "View conversations");
+  requireWhatsAppPermission(context.companyUser, "View WhatsApp conversations");
   const conversation = await conversationDocument(context, conversationId);
   const data = conversation.data() || {};
   const usersSnapshot = await adminDb.collection(`companies/${context.companyId}/users`).limit(100).get();
@@ -219,7 +220,7 @@ export async function getConversation(context: ServerUserContext, conversationId
 }
 
 export async function findAssociationOptions(context: ServerUserContext, search: string) {
-  requireWhatsAppPermission(context.companyUser, "Manage conversations");
+  requireWhatsAppPermission(context.companyUser, "Manage WhatsApp conversations");
   const needle = String(search || "").trim().toLowerCase().slice(0, 80);
   if (needle.length < 2) return { customers: [] };
   const needleDigits = needle.replace(/\D/g, "");
@@ -258,7 +259,7 @@ export async function findAssociationOptions(context: ServerUserContext, search:
 }
 
 export async function listMessages(context: ServerUserContext, conversationId: string, url: URL) {
-  requireWhatsAppPermission(context.companyUser, "View conversations");
+  requireWhatsAppPermission(context.companyUser, "View WhatsApp conversations");
   const conversation = await conversationDocument(context, conversationId);
   const cursor = decodeCursor(url.searchParams.get("cursor"));
   let query: Query = adminDb.collection(`companies/${context.companyId}/whatsappMessages`)
@@ -295,7 +296,8 @@ export async function listMessages(context: ServerUserContext, conversationId: s
 }
 
 export async function getMessageMedia(context: ServerUserContext, conversationId: string, messageId: string) {
-  requireWhatsAppPermission(context.companyUser, "View conversations");
+  requireWhatsAppPermission(context.companyUser, "View WhatsApp conversations");
+  requireWhatsAppPermission(context.companyUser, "View WhatsApp media");
   const safeConversationId = requireId(conversationId, "Conversation ID");
   const safeMessageId = requireId(messageId, "Message ID");
   await conversationDocument(context, safeConversationId);
@@ -315,12 +317,12 @@ export async function updateConversation(context: ServerUserContext, conversatio
   if (!body || typeof body !== "object") throw new WhatsAppError("INVALID_INPUT", "Conversation action is invalid.", 400);
   const input = body as Record<string, unknown>;
   const action = String(input.action || "");
-  if (action === "associate-customer-contact") requireWhatsAppPermission(context.companyUser, "Manage conversations");
+  if (action === "associate-customer-contact") requireWhatsAppPermission(context.companyUser, "Manage WhatsApp conversations");
   const conversation = await conversationDocument(context, conversationId);
   const conversationRef = conversation.ref;
 
   if (action === "read") {
-    requireWhatsAppPermission(context.companyUser, "View conversations");
+    requireWhatsAppPermission(context.companyUser, "View WhatsApp conversations");
     await adminDb.runTransaction(async (transaction) => {
       const current = await transaction.get(conversationRef);
       if (!current.exists) throw new WhatsAppError("NOT_FOUND", "This WhatsApp conversation no longer exists.", 404);
@@ -329,7 +331,7 @@ export async function updateConversation(context: ServerUserContext, conversatio
       transaction.create(auditRef(context.companyId), { companyId: context.companyId, action: "CONVERSATION_READ", result: "success", conversationId, userId: context.uid, createdAt: FieldValue.serverTimestamp() });
     });
   } else if (action === "assign-user") {
-    requireWhatsAppPermission(context.companyUser, "Assign conversations");
+    requireWhatsAppPermission(context.companyUser, "Assign WhatsApp conversations");
     const userId = input.userId ? requireId(input.userId, "User ID") : null;
     let userName = "";
     if (userId) {
@@ -345,7 +347,7 @@ export async function updateConversation(context: ServerUserContext, conversatio
       transaction.create(auditRef(context.companyId), { companyId: context.companyId, action: "CONVERSATION_ASSIGNED", result: "success", conversationId, userId: context.uid, previousAssignedUserId: previous, assignedUserId: userId, createdAt: FieldValue.serverTimestamp() });
     });
   } else if (action === "assign-job" || action === "link-job") {
-    requireWhatsAppPermission(context.companyUser, "Manage conversations");
+    requireWhatsAppPermission(context.companyUser, "Manage WhatsApp conversations");
     const jobId = requireId(input.jobId, "Job ID");
     const jobRef = adminDb.doc(`companies/${context.companyId}/jobs/${jobId}`);
     await adminDb.runTransaction(async (transaction) => {
@@ -383,7 +385,7 @@ export async function updateConversation(context: ServerUserContext, conversatio
       });
     });
   } else if (action === "unlink-job") {
-    requireWhatsAppPermission(context.companyUser, "Manage conversations");
+    requireWhatsAppPermission(context.companyUser, "Manage WhatsApp conversations");
     const jobId = requireId(input.jobId, "Job ID");
     await adminDb.runTransaction(async (transaction) => {
       const current = await transaction.get(conversationRef);
@@ -431,7 +433,7 @@ export async function updateConversation(context: ServerUserContext, conversatio
       transaction.create(auditRef(context.companyId), { companyId: context.companyId, ...association.audit, createdAt: FieldValue.serverTimestamp() });
     });
   } else if (action === "close" || action === "reopen") {
-    requireWhatsAppPermission(context.companyUser, "Close conversations");
+    requireWhatsAppPermission(context.companyUser, "Close WhatsApp conversations");
     const closing = action === "close";
     await adminDb.runTransaction(async (transaction) => {
       const current = await transaction.get(conversationRef);
@@ -455,7 +457,7 @@ export async function updateConversation(context: ServerUserContext, conversatio
 }
 
 export async function updateMessageJobContext(context: ServerUserContext, conversationId: string, body: unknown) {
-  requireWhatsAppPermission(context.companyUser, "Manage conversations");
+  requireWhatsAppPermission(context.companyUser, "Manage WhatsApp conversations");
   if (!body || typeof body !== "object") throw new WhatsAppError("INVALID_INPUT", "Message action is invalid.", 400);
   const input = body as Record<string, unknown>;
   if (input.action !== "assign-job-context") throw new WhatsAppError("INVALID_INPUT", "Message action is not supported.", 400);
@@ -490,7 +492,7 @@ export async function updateMessageJobContext(context: ServerUserContext, conver
 }
 
 export async function unreadSummary(context: ServerUserContext) {
-  requireWhatsAppPermission(context.companyUser, "View inbox");
+  requireWhatsAppPermission(context.companyUser, "View WhatsApp");
   const aggregate = await adminDb.collection(`companies/${context.companyId}/whatsappConversations`).where("unreadCount", ">", 0).count().get();
   return { unreadConversations: aggregate.data().count };
 }

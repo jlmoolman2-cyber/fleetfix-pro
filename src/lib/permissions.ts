@@ -39,7 +39,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
   { title: "Communication", items: [
     { name: "Messages", sub: ["View messages", "Send messages", "Manage message templates", "Manage automated communication"] },
     { name: "Notifications", sub: ["View notifications", "Finalize notifications"] },
-    { name: "WhatsApp", sub: ["View inbox", "View conversations", "Send messages", "Send templates", "Manage conversations", "Assign conversations", "Close conversations", "Manage WhatsApp settings", "Manage templates", "Manage automation rules"] },
+    { name: "WhatsApp", sub: ["View WhatsApp", "View WhatsApp conversations", "Send WhatsApp messages", "View WhatsApp media", "Send WhatsApp templates", "Manage WhatsApp conversations", "Assign WhatsApp conversations", "Close WhatsApp conversations", "Manage WhatsApp settings", "Manage WhatsApp templates", "Manage WhatsApp automation rules"] },
   ] },
   { title: "Administration", items: [
     { name: "Company Administration", sub: ["Manage company details", "Manage job settings", "Manage quote settings", "Manage invoice settings", "Manage purchase order settings", "Manage query settings"] },

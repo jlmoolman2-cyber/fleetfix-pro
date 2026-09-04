@@ -88,9 +88,9 @@ test("association preserves phone, WhatsApp identity, job assignment, and status
   assert.equal(updated.status, conversation.status);
 });
 
-test("Manage conversations is required and remains granted to administrators", () => {
-  assert.equal(userHasPermission({ permissions: { "Manage conversations": false } }, "Manage conversations"), false);
-  assert.equal(userHasPermission({ primaryRole: "Administrator" }, "Manage conversations"), true);
+test("Manage WhatsApp conversations is required and remains granted to administrators", () => {
+  assert.equal(userHasPermission({ permissions: { "Manage WhatsApp conversations": false } }, "Manage WhatsApp conversations"), false);
+  assert.equal(userHasPermission({ primaryRole: "Administrator" }, "Manage WhatsApp conversations"), true);
 });
 
 test("manual association does not enable outbound WhatsApp sending", () => {
