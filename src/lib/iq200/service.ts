@@ -61,7 +61,7 @@ function validateJobId(jobId: string) {
   if (!JOB_ID.test(jobId)) throw new ServerAccessError("INVALID_INPUT", "The job ID is invalid.", 400);
 }
 
-async function authorisedJob(context: ServerUserContext, jobId: string) {
+export async function authorisedJob(context: ServerUserContext, jobId: string) {
   requireIQ200Access(context);
   validateJobId(jobId);
   const snapshot = await adminDb.doc(`companies/${context.companyId}/jobs/${jobId}`).get();
