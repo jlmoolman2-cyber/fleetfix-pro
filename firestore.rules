@@ -59,8 +59,9 @@ service cloud.firestore {
       ];
     }
 
-    function isServerOnlyWhatsAppCollection(collectionId) {
+    function isServerOnlyCollection(collectionId) {
       return collectionId in [
+        'communicationTemplates',
         'whatsappConversations', 'whatsappMessages', 'whatsappWebhookEvents', 'whatsappSendRequests',
         'whatsappAuditLog', 'whatsappDeliveryStatuses', 'whatsappRateLimits', 'whatsappDiagnostics', 'whatsappMediaJobs'
       ];
@@ -146,12 +147,12 @@ service cloud.firestore {
           && collectionId != 'users'
           && collectionId != 'audit_log'
           && collectionId != 'whatsappSettings'
-          && !isServerOnlyWhatsAppCollection(collectionId);
+          && !isServerOnlyCollection(collectionId);
         allow create, update, delete: if isCompanyMember(companyId)
           && collectionId != 'users'
           && collectionId != 'audit_log'
           && collectionId != 'whatsappSettings'
-          && !isServerOnlyWhatsAppCollection(collectionId)
+          && !isServerOnlyCollection(collectionId)
           && (!isAdministrativeCollection(collectionId)
             || canManageAdministrativeCollection(companyId, collectionId));
       }

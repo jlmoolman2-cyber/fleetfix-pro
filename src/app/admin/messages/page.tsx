@@ -1,429 +1,46 @@
-
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Copy, Eye, Pencil, Plus, Search, X } from "lucide-react";
+import { communicationTemplateApi } from "@/lib/communicationTemplates/client";
+import { COMMUNICATION_CATEGORIES, COMMUNICATION_CHANNELS, COMMUNICATION_PURPOSES, COMMUNICATION_RECIPIENT_TYPES, type CommunicationTemplateInput } from "@/lib/communicationTemplates/core";
 
-import Link from "next/link";
-
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  orderBy,
-  query,
-  serverTimestamp,
-} from "firebase/firestore";
-
-import {
-  Plus,
-  Search,
-  Trash2,
-  Pencil,
-} from "lucide-react";
-
-import {
-  clientDb,
-} from "@/lib/firebaseClient";
-
-import {
-  COMPANY_ID,
-} from "@/lib/company";
-import { MESSAGE_TEMPLATE_MODULES } from "@/lib/messageTemplateModules";
-
-type Template = {
-  id: string;
-  name: string;
-  module: string;
-  subject?: string;
-  createdBy?: string;
-};
+type Template = CommunicationTemplateInput & { id: string; updatedAt: string | null; updatedBy: string; availableVariables: string[] };
+type Variable = { key: string; label: string; description: string; example: string };
+type Capabilities = { manageEmail: boolean; manageWhatsApp: boolean; viewEmail: boolean; viewWhatsApp: boolean };
+type Preview = { subject: { rendered: string; unresolved: string[] }; body: { rendered: string; unresolved: string[] }; sent: false };
+const emptyTemplate: CommunicationTemplateInput = { name: "", description: "", category: "general", recipientType: "general-recipient", channel: "email", purpose: "manual-customer-message", active: true, subject: "", body: "" };
+const label = (value: string) => value.replace(/-/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
 
 export default function AdminTemplatesPage() {
-
-  const [templates, setTemplates] =
-    useState<Template[]>([]);
-
-  const [search, setSearch] =
-    useState("");
-
-  const [showModal, setShowModal] =
-    useState(false);
-
-  const [templateName, setTemplateName] =
-    useState("");
-
-  const [module, setModule] =
-    useState("JobCard");
-
-  const [saving, setSaving] =
-    useState(false);
-
-  useEffect(() => {
-
-    const q = query(
-      collection(
-        clientDb,
-        "companies",
-        COMPANY_ID,
-        "messageTemplates"
-      ),
-      orderBy("name")
-    );
-
-    const unsub =
-      onSnapshot(q, (snapshot) => {
-
-        setTemplates(
-          snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...(doc.data() as any),
-          }))
-        );
-      });
-
-    return () => unsub();
-
-  }, []);
-
-  const filteredTemplates =
-    useMemo(() => {
-
-      return templates.filter((item) => {
-
-        const value =
-          `${item.name} ${item.subject || ""} ${item.module}`
-            .toLowerCase();
-
-        return value.includes(
-          search.toLowerCase()
-        );
-      });
-
-    }, [templates, search]);
-
-  async function createTemplate() {
-
-    if (!templateName.trim()) {
-
-      alert("Please enter template name");
-
-      return;
-    }
-
-    try {
-
-      setSaving(true);
-
-      const ref =
-        await addDoc(
-          collection(
-            clientDb,
-            "companies",
-            COMPANY_ID,
-            "messageTemplates"
-          ),
-          {
-            name: templateName,
-            module,
-            subject: "",
-            htmlBody: "",
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            createdBy:
-              "admin@fleetfix.co.za",
-          }
-        );
-
-      setShowModal(false);
-
-      setTemplateName("");
-
-      window.location.href =
-        `/admin/messages/${ref.id}`;
-
-    } catch (error) {
-
-      console.error(error);
-
-      alert("Failed to create template");
-
-    } finally {
-
-      setSaving(false);
-    }
-  }
-
-  async function deleteTemplate(
-    id: string
-  ) {
-
-    const confirmed =
-      confirm("Delete template?");
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-
-      await deleteDoc(
-        doc(
-          clientDb,
-          "companies",
-          COMPANY_ID,
-          "messageTemplates",
-          id
-        )
-      );
-
-    } catch (error) {
-
-      console.error(error);
-
-      alert("Failed to delete template");
-    }
-  }
-
-  return (
-
-    <div className="min-h-screen bg-[#f5f7fb] p-6">
-
-      <div className="w-full">
-
-        {/* TOOLBAR */}
-        <div className="mb-6 flex items-center justify-between gap-4">
-
-          <div className="flex items-center gap-3">
-
-            <div className="relative w-[320px]">
-
-              <Search
-                size={18}
-                className="absolute left-4 top-4 text-gray-400"
-              />
-
-              <input
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-                placeholder="Search"
-                className="h-12 w-full rounded-xl border border-gray-200 bg-white pl-11 pr-4 outline-none focus:border-blue-500"
-              />
-
-            </div>
-
-          </div>
-
-          <button
-            onClick={() => setShowModal(true)}
-            className="flex h-12 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white hover:bg-blue-700"
-          >
-            Add Template
-            <Plus size={16} />
-          </button>
-
-        </div>
-
-        {/* TABLE */}
-        <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm">
-
-          <table className="w-full">
-
-            <thead>
-
-              <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
-
-                <th className="px-6 py-4">
-                  Name
-                </th>
-
-                <th className="px-6 py-4">
-                  Subject
-                </th>
-
-                <th className="px-6 py-4">
-                  Module
-                </th>
-
-                <th className="px-6 py-4">
-                  Created By
-                </th>
-
-                <th className="px-6 py-4">
-                  Actions
-                </th>
-
-              </tr>
-
-            </thead>
-
-            <tbody>
-
-              {filteredTemplates.map((item) => (
-
-                <tr
-                  key={item.id}
-                  className="border-b border-gray-100 hover:bg-gray-50"
-                >
-
-                  <td className="px-6 py-4 font-bold text-blue-700">
-
-                    <Link
-                      href={`/admin/messages/${item.id}`}
-                    >
-                      {item.name}
-                    </Link>
-
-                  </td>
-
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {item.subject || "-"}
-                  </td>
-
-                  <td className="px-6 py-4">
-
-                    <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
-                      {item.module}
-                    </span>
-
-                  </td>
-
-                  <td className="px-6 py-4 text-sm text-gray-600">
-                    {item.createdBy}
-                  </td>
-
-                  <td className="px-6 py-4">
-
-                    <div className="flex gap-2">
-
-                      <Link
-                        href={`/admin/messages/${item.id}`}
-                        className="rounded-xl border border-gray-300 p-2 hover:bg-gray-100"
-                      >
-                        <Pencil size={16} />
-                      </Link>
-
-                      <button
-                        onClick={() =>
-                          deleteTemplate(item.id)
-                        }
-                        className="rounded-xl bg-red-100 p-2 text-red-700 hover:bg-red-200"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-
-                    </div>
-
-                  </td>
-
-                </tr>
-
-              ))}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-      </div>
-
-      {/* MODAL */}
-      {showModal && (
-
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-10">
-
-          <div className="w-full max-w-2xl rounded-3xl bg-white p-8 shadow-2xl">
-
-            <h2 className="mb-8 text-3xl font-black text-gray-900">
-              Template Details
-            </h2>
-
-            <div className="space-y-6">
-
-              <div>
-
-                <label className="mb-2 block text-sm font-bold text-gray-700">
-                  Name of the template
-                </label>
-
-                <input
-                  value={templateName}
-                  onChange={(e) =>
-                    setTemplateName(e.target.value)
-                  }
-                  className="h-14 w-full rounded-xl border border-gray-300 px-4 outline-none focus:border-blue-500"
-                />
-
-              </div>
-
-              <div>
-
-                <label className="mb-2 block text-sm font-bold text-gray-700">
-                  Module
-                </label>
-
-                <select
-                  value={module}
-                  onChange={(e) =>
-                    setModule(e.target.value)
-                  }
-                  className="h-14 w-full rounded-xl border border-gray-300 px-4 outline-none focus:border-blue-500"
-                >
-
-                  {MESSAGE_TEMPLATE_MODULES.map((item) => (
-
-                    <option
-                      key={item}
-                      value={item}
-                    >
-                      {item}
-                    </option>
-
-                  ))}
-
-                </select>
-
-              </div>
-
-            </div>
-
-            <div className="mt-10 flex gap-3">
-
-              <button
-                onClick={() =>
-                  setShowModal(false)
-                }
-                className="rounded-xl border border-blue-600 px-8 py-3 font-bold text-blue-700"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={createTemplate}
-                disabled={saving}
-                className="rounded-xl bg-blue-600 px-8 py-3 font-bold text-white hover:bg-blue-700"
-              >
-                {saving
-                  ? "Creating..."
-                  : "Create"}
-              </button>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      )}
-
-    </div>
-  );
+  const [templates, setTemplates] = useState<Template[]>([]); const [variables, setVariables] = useState<Variable[]>([]);
+  const [capabilities, setCapabilities] = useState<Capabilities>({ manageEmail: false, manageWhatsApp: false, viewEmail: false, viewWhatsApp: false });
+  const [search, setSearch] = useState(""); const [channel, setChannel] = useState(""); const [category, setCategory] = useState(""); const [active, setActive] = useState("");
+  const [editing, setEditing] = useState<Template | null | "new">(null); const [form, setForm] = useState<CommunicationTemplateInput>(emptyTemplate);
+  const [preview, setPreview] = useState<Preview | null>(null); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    try { setError(""); const params = new URLSearchParams(); if (search) params.set("search", search); if (channel) params.set("channel", channel); if (category) params.set("category", category); if (active) params.set("active", active);
+      const result = await communicationTemplateApi<{ items: Template[]; variables: Variable[]; capabilities: Capabilities }>(`/api/communication-templates?${params}`); setTemplates(result.items); setVariables(result.variables); setCapabilities(result.capabilities);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Templates could not be loaded."); }
+  }, [search, channel, category, active]);
+  useEffect(() => { const timer = setTimeout(() => void load(), 150); return () => clearTimeout(timer); }, [load]);
+  const canManage = form.channel === "whatsapp" ? capabilities.manageWhatsApp : capabilities.manageEmail;
+  const canCreate = capabilities.manageEmail || capabilities.manageWhatsApp;
+  const filteredVariables = useMemo(() => variables, [variables]);
+  const openEditor = (template?: Template) => { setEditing(template || "new"); setForm(template ? { name: template.name, description: template.description, category: template.category, recipientType: template.recipientType, channel: template.channel, purpose: template.purpose, active: template.active, subject: template.subject, body: template.body } : { ...emptyTemplate, channel: capabilities.manageEmail ? "email" : "whatsapp" }); setPreview(null); setError(""); };
+  const insertVariable = (key: string) => setForm((current) => ({ ...current, body: `${current.body}{{${key}}}` }));
+  const save = async () => { try { setSaving(true); setError(""); if (editing === "new") await communicationTemplateApi("/api/communication-templates", { method: "POST", body: JSON.stringify(form) }); else if (editing) await communicationTemplateApi(`/api/communication-templates/${editing.id}`, { method: "PATCH", body: JSON.stringify({ action: "update", template: form }) }); setEditing(null); await load(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Template could not be saved."); } finally { setSaving(false); } };
+  const action = async (template: Template, body: Record<string, unknown>) => { try { setSaving(true); setError(""); await communicationTemplateApi(`/api/communication-templates/${template.id}`, { method: "PATCH", body: JSON.stringify(body) }); await load(); } catch (reason) { setError(reason instanceof Error ? reason.message : "Template action failed."); } finally { setSaving(false); } };
+  const showPreview = async () => { if (!editing || editing === "new") { const localValues = Object.fromEntries(variables.map((item) => [item.key, item.example])); const render = (text: string) => ({ rendered: text.replace(/\{\{([^{}]+)\}\}/g, (_m, key) => localValues[String(key).trim()] ?? `[Unresolved: ${String(key).trim()}]`), unresolved: [...text.matchAll(/\{\{([^{}]+)\}\}/g)].map((match) => match[1].trim()).filter((key) => !(key in localValues)) }); setPreview({ subject: render(form.subject), body: render(form.body), sent: false }); return; }
+    try { setPreview(await communicationTemplateApi<Preview>(`/api/communication-templates/${editing.id}`, { method: "PATCH", body: JSON.stringify({ action: "preview", template: form }) })); } catch (reason) { setError(reason instanceof Error ? reason.message : "Preview failed."); } };
+
+  return <div className="min-h-screen bg-[#f5f7fb] p-6"><div className="mb-6 flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-black uppercase tracking-widest text-blue-600">Communications Setup</p><h1 className="text-3xl font-black">Message Templates</h1><p className="mt-1 text-sm text-gray-500">Configure reusable Email and WhatsApp content. Preview never sends.</p></div>{canCreate && <button onClick={() => openEditor()} className="flex h-11 items-center gap-2 rounded-xl bg-blue-600 px-5 text-sm font-black text-white"><Plus size={16}/>New Template</button>}</div>
+    {error && <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</div>}
+    <div className="mb-4 grid gap-3 rounded-2xl border bg-white p-4 md:grid-cols-4"><label className="flex items-center gap-2 rounded-xl bg-gray-100 px-3"><Search size={16}/><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search templates" className="h-10 min-w-0 flex-1 bg-transparent outline-none"/></label><select value={channel} onChange={(event) => setChannel(event.target.value)} className="rounded-xl border px-3"><option value="">All channels</option>{COMMUNICATION_CHANNELS.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select><select value={category} onChange={(event) => setCategory(event.target.value)} className="rounded-xl border px-3"><option value="">All categories</option>{COMMUNICATION_CATEGORIES.map((item) => <option key={item} value={item}>{label(item)}</option>)}</select><select value={active} onChange={(event) => setActive(event.target.value)} className="rounded-xl border px-3"><option value="">Any status</option><option value="true">Active</option><option value="false">Inactive</option></select></div>
+    <div className="overflow-hidden rounded-2xl border bg-white shadow-sm"><table className="w-full text-left text-sm"><thead className="bg-gray-50 text-xs uppercase text-gray-500"><tr><th className="p-4">Template</th><th>Channel</th><th>Category / Purpose</th><th>Status</th><th className="p-4">Actions</th></tr></thead><tbody>{templates.map((template) => { const manageable = template.channel === "whatsapp" ? capabilities.manageWhatsApp : capabilities.manageEmail; return <tr key={template.id} className="border-t"><td className="p-4"><div className="font-black">{template.name}</div><div className="text-xs text-gray-500">{template.description}</div></td><td><span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">{label(template.channel)}</span></td><td><div className="font-bold">{label(template.category)}</div><div className="text-xs text-gray-500">{label(template.purpose)}</div></td><td>{template.active ? "Active" : "Inactive"}</td><td className="p-4"><div className="flex gap-2">{manageable && <><button title="Edit" onClick={() => openEditor(template)} className="rounded-lg border p-2"><Pencil size={15}/></button><button title="Duplicate" disabled={saving} onClick={() => void action(template, { action: "duplicate" })} className="rounded-lg border p-2"><Copy size={15}/></button><button disabled={saving} onClick={() => void action(template, { action: "set-active", active: !template.active })} className="rounded-lg border px-3 text-xs font-bold">{template.active ? "Deactivate" : "Activate"}</button></>}</div></td></tr>; })}{templates.length === 0 && <tr><td colSpan={5} className="p-10 text-center text-gray-500">No authorised templates match these filters.</td></tr>}</tbody></table></div>
+    {editing && <div className="fixed inset-0 z-50 overflow-y-auto bg-black/40 p-4"><div className="mx-auto my-4 max-w-5xl rounded-3xl bg-white p-6 shadow-2xl"><div className="mb-5 flex justify-between"><div><h2 className="text-2xl font-black">{editing === "new" ? "Create" : "Edit"} Communication Template</h2><p className="text-sm text-gray-500">Internal FleetFix content template — not a Meta-approved template.</p></div><button onClick={() => setEditing(null)}><X/></button></div><div className="grid gap-4 md:grid-cols-2"><label className="text-sm font-bold">Template Name<input value={form.name} onChange={(e) => setForm({...form,name:e.target.value})} className="mt-1 h-11 w-full rounded-xl border px-3"/></label><label className="text-sm font-bold">Channel<select value={form.channel} onChange={(e) => setForm({...form,channel:e.target.value as "email"|"whatsapp",subject:e.target.value === "whatsapp" ? "" : form.subject})} className="mt-1 h-11 w-full rounded-xl border px-3">{COMMUNICATION_CHANNELS.filter((item) => item === "email" ? capabilities.manageEmail : capabilities.manageWhatsApp).map((item)=><option key={item}>{item}</option>)}</select></label><label className="text-sm font-bold md:col-span-2">Description<input value={form.description} onChange={(e)=>setForm({...form,description:e.target.value})} className="mt-1 h-11 w-full rounded-xl border px-3"/></label><label className="text-sm font-bold">Category<select value={form.category} onChange={(e)=>setForm({...form,category:e.target.value})} className="mt-1 h-11 w-full rounded-xl border px-3">{COMMUNICATION_CATEGORIES.map((item)=><option key={item} value={item}>{label(item)}</option>)}</select></label><label className="text-sm font-bold">Recipient Type<select value={form.recipientType} onChange={(e)=>setForm({...form,recipientType:e.target.value})} className="mt-1 h-11 w-full rounded-xl border px-3">{COMMUNICATION_RECIPIENT_TYPES.map((item)=><option key={item} value={item}>{label(item)}</option>)}</select></label><label className="text-sm font-bold">Purpose / Trigger<select value={form.purpose} onChange={(e)=>setForm({...form,purpose:e.target.value})} className="mt-1 h-11 w-full rounded-xl border px-3">{COMMUNICATION_PURPOSES.map((item)=><option key={item} value={item}>{label(item)}</option>)}</select></label><label className="flex items-center gap-2 self-end pb-3 text-sm font-bold"><input type="checkbox" checked={form.active} onChange={(e)=>setForm({...form,active:e.target.checked})}/>Active</label>{form.channel === "email" && <label className="text-sm font-bold md:col-span-2">Email Subject<input value={form.subject} onChange={(e)=>setForm({...form,subject:e.target.value})} className="mt-1 h-11 w-full rounded-xl border px-3"/></label>}<label className="text-sm font-bold md:col-span-2">Message Body<textarea rows={8} value={form.body} onChange={(e)=>setForm({...form,body:e.target.value})} className="mt-1 w-full rounded-xl border p-3"/></label></div>
+      <div className="mt-4"><div className="text-xs font-black uppercase text-gray-500">Available Variables</div><div className="mt-2 flex flex-wrap gap-2">{filteredVariables.map((variable)=><button key={variable.key} type="button" onClick={()=>insertVariable(variable.key)} title={`${variable.description} Example: ${variable.example}`} className="rounded-lg bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">{`{{${variable.key}}}`}</button>)}</div></div>
+      <div className="mt-5 flex gap-3"><button type="button" onClick={()=>void showPreview()} className="flex items-center gap-2 rounded-xl border px-4 py-2 font-bold"><Eye size={16}/>Safe Preview</button><button type="button" disabled={!canManage || saving} onClick={()=>void save()} className="rounded-xl bg-blue-600 px-5 py-2 font-black text-white disabled:opacity-40">{saving?"Saving…":"Save Template"}</button></div>{preview && <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><div className="font-black text-emerald-900">Preview only — nothing sent</div>{form.channel === "email" && <div className="mt-3"><strong>Subject:</strong> {preview.subject.rendered}</div>}<pre className="mt-3 whitespace-pre-wrap font-sans text-sm">{preview.body.rendered}</pre>{[...preview.subject.unresolved,...preview.body.unresolved].length>0 && <div className="mt-3 text-sm font-bold text-amber-700">Unresolved: {[...new Set([...preview.subject.unresolved,...preview.body.unresolved])].join(", ")}</div>}</div>}</div></div>}
+  </div>;
 }

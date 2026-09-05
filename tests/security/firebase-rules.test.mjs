@@ -49,6 +49,8 @@ beforeEach(async () => {
       setDoc(doc(db, "companies/company-b/whatsappConversations/conversation-b"), { companyId: "company-b", phoneNumberWaId: "27222222222" }),
       setDoc(doc(db, "companies/company-a/whatsappMessages/message-a"), { companyId: "company-a", conversationId: "conversation-a" }),
       setDoc(doc(db, "companies/company-b/whatsappMessages/message-b"), { companyId: "company-b", conversationId: "conversation-b" }),
+      setDoc(doc(db, "companies/company-a/communicationTemplates/template-a"), { companyId: "company-a", channel: "email" }),
+      setDoc(doc(db, "companies/company-b/communicationTemplates/template-b"), { companyId: "company-b", channel: "whatsapp" }),
     ]);
     await uploadBytes(
       ref(context.storage(), "companies/company-a/jobs/job-1/attachments/existing.txt"),
@@ -124,6 +126,18 @@ test("browser writes to protected WhatsApp collections are denied for users and 
     for (const collectionName of protectedCollections) {
       await assertFails(setDoc(doc(db, `companies/company-a/${collectionName}/test`), { value: "blocked" }));
     }
+  }
+});
+
+test("communication templates remain server-only and company-isolated", async () => {
+  for (const uid of ["user-a", "admin-a"]) {
+    const db = environment.authenticatedContext(uid).firestore();
+    await assertFails(getDoc(doc(db, "companies/company-a/communicationTemplates/template-a")));
+    await assertFails(setDoc(doc(db, "companies/company-a/communicationTemplates/new-template"), {
+      companyId: "company-a",
+      channel: "email",
+    }));
+    await assertFails(getDoc(doc(db, "companies/company-b/communicationTemplates/template-b")));
   }
 });
 
