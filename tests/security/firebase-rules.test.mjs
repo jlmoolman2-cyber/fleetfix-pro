@@ -51,6 +51,8 @@ beforeEach(async () => {
       setDoc(doc(db, "companies/company-b/whatsappMessages/message-b"), { companyId: "company-b", conversationId: "conversation-b" }),
       setDoc(doc(db, "companies/company-a/communicationTemplates/template-a"), { companyId: "company-a", channel: "email" }),
       setDoc(doc(db, "companies/company-b/communicationTemplates/template-b"), { companyId: "company-b", channel: "whatsapp" }),
+      setDoc(doc(db, "companies/company-a/communicationRulePlans/rule-a"), { companyId: "company-a", channel: "email" }),
+      setDoc(doc(db, "companies/company-b/communicationRulePlans/rule-b"), { companyId: "company-b", channel: "whatsapp" }),
     ]);
     await uploadBytes(
       ref(context.storage(), "companies/company-a/jobs/job-1/attachments/existing.txt"),
@@ -138,6 +140,15 @@ test("communication templates remain server-only and company-isolated", async ()
       channel: "email",
     }));
     await assertFails(getDoc(doc(db, "companies/company-b/communicationTemplates/template-b")));
+  }
+});
+
+test("communication rule plans remain server-only and company-isolated", async () => {
+  for (const uid of ["user-a", "admin-a"]) {
+    const db = environment.authenticatedContext(uid).firestore();
+    await assertFails(getDoc(doc(db, "companies/company-a/communicationRulePlans/rule-a")));
+    await assertFails(setDoc(doc(db, "companies/company-a/communicationRulePlans/new-rule"), { companyId: "company-a", channel: "email" }));
+    await assertFails(getDoc(doc(db, "companies/company-b/communicationRulePlans/rule-b")));
   }
 });
 

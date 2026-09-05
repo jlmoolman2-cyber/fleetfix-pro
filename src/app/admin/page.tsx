@@ -94,6 +94,12 @@ const sections = [
     icon: "💬",
   },
   {
+    title: "Communication Rules",
+    description: "Configure and safely simulate communication plans",
+    href: "/admin/communication-rules",
+    icon: "RULE",
+  },
+  {
     title: "Job Form Templates",
     description: "Message Templates to Users, Customers, Suppliers",
     href: "/admin/jobforms",
