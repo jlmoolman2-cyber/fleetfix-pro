@@ -53,6 +53,8 @@ beforeEach(async () => {
       setDoc(doc(db, "companies/company-b/communicationTemplates/template-b"), { companyId: "company-b", channel: "whatsapp" }),
       setDoc(doc(db, "companies/company-a/communicationRulePlans/rule-a"), { companyId: "company-a", channel: "email" }),
       setDoc(doc(db, "companies/company-b/communicationRulePlans/rule-b"), { companyId: "company-b", channel: "whatsapp" }),
+      setDoc(doc(db, "companies/company-a/communicationExecutions/execution-a"), { companyId: "company-a", channel: "email", status: "READY" }),
+      setDoc(doc(db, "companies/company-b/communicationExecutions/execution-b"), { companyId: "company-b", channel: "whatsapp", status: "READY" }),
     ]);
     await uploadBytes(
       ref(context.storage(), "companies/company-a/jobs/job-1/attachments/existing.txt"),
@@ -149,6 +151,16 @@ test("communication rule plans remain server-only and company-isolated", async (
     await assertFails(getDoc(doc(db, "companies/company-a/communicationRulePlans/rule-a")));
     await assertFails(setDoc(doc(db, "companies/company-a/communicationRulePlans/new-rule"), { companyId: "company-a", channel: "email" }));
     await assertFails(getDoc(doc(db, "companies/company-b/communicationRulePlans/rule-b")));
+  }
+});
+
+test("communication executions remain server-only and company-isolated", async () => {
+  for (const uid of ["user-a", "admin-a"]) {
+    const db = environment.authenticatedContext(uid).firestore();
+    await assertFails(getDoc(doc(db, "companies/company-a/communicationExecutions/execution-a")));
+    await assertFails(setDoc(doc(db, "companies/company-a/communicationExecutions/new-execution"), { companyId: "company-a", status: "SENT" }));
+    await assertFails(updateDoc(doc(db, "companies/company-a/communicationExecutions/execution-a"), { status: "SENT" }));
+    await assertFails(getDoc(doc(db, "companies/company-b/communicationExecutions/execution-b")));
   }
 });
 

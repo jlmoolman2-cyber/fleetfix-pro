@@ -100,6 +100,12 @@ const sections = [
     icon: "RULE",
   },
   {
+    title: "Communication Executions",
+    description: "Inspect prepared communication executions",
+    href: "/admin/communication-executions",
+    icon: "EXEC",
+  },
+  {
     title: "Job Form Templates",
     description: "Message Templates to Users, Customers, Suppliers",
     href: "/admin/jobforms",

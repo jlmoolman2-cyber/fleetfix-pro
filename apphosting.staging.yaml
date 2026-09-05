@@ -4,6 +4,11 @@ runConfig:
   minInstances: 0
 
 env:
+  - variable: COMMUNICATION_EXECUTION_ENABLED
+    value: "false"
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: FLEETFIX_ENVIRONMENT
     value: "staging"
     availability: [BUILD, RUNTIME]

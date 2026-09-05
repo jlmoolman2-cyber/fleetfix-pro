@@ -61,7 +61,7 @@ service cloud.firestore {
 
     function isServerOnlyCollection(collectionId) {
       return collectionId in [
-        'communicationTemplates', 'communicationRulePlans',
+        'communicationTemplates', 'communicationRulePlans', 'communicationExecutions',
         'whatsappConversations', 'whatsappMessages', 'whatsappWebhookEvents', 'whatsappSendRequests',
         'whatsappAuditLog', 'whatsappDeliveryStatuses', 'whatsappRateLimits', 'whatsappDiagnostics', 'whatsappMediaJobs'
       ];
