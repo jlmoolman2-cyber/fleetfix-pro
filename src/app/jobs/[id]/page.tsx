@@ -220,6 +220,7 @@ export default function JobDetail({
   const [canCorrectUsedMaterials, setCanCorrectUsedMaterials] = useState(false);
   const [canViewJobPricing, setCanViewJobPricing] = useState(false);
   const [canChangeJobStatus, setCanChangeJobStatus] = useState(false);
+  const [canUseIQ200, setCanUseIQ200] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [closedJobEditing, setClosedJobEditing] = useState(false);
 
@@ -468,6 +469,8 @@ export default function JobDetail({
             ? permissions["Change job status"] === true
             : rolePermissions["Change job status"] === true
         );
+        const resolvedPermissions = effectivePermissions(userData);
+        setCanUseIQ200(resolvedPermissions["View jobs"] === true && resolvedPermissions["Use IQ200 Technician Assist"] === true);
         setAuthChecked(true);
       }
     }
@@ -4902,6 +4905,14 @@ export default function JobDetail({
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
+
+                {canUseIQ200 && <Link
+                  href={`/jobs/${job.id}/iq200`}
+                  data-closed-job-allowed="true"
+                  className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-black text-white shadow-sm hover:bg-blue-700"
+                >
+                  ASK IQ200
+                </Link>}
 
                 <Link href="/jobs" className="rounded-xl border border-gray-300 bg-white px-5 py-2 text-sm font-bold text-gray-800 hover:bg-gray-50">
                   Back

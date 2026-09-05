@@ -138,17 +138,32 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      match /jobs/{jobId} {
+        allow read, create, update, delete: if isCompanyMember(companyId);
+
+        match /iq200_sessions/{sessionId}/{document=**} {
+          allow read, write: if false;
+        }
+
+        match /{jobCollection}/{jobDocument=**} {
+          allow read, create, update, delete: if isCompanyMember(companyId)
+            && jobCollection != 'iq200_sessions';
+        }
+      }
+
       match /{protectedCollection}/{document=**} {
         allow read, write: if false;
       }
 
       match /{collectionId}/{document=**} {
         allow read: if isCompanyMember(companyId)
+          && collectionId != 'jobs'
           && collectionId != 'users'
           && collectionId != 'audit_log'
           && collectionId != 'whatsappSettings'
           && !isServerOnlyCollection(collectionId);
         allow create, update, delete: if isCompanyMember(companyId)
+          && collectionId != 'jobs'
           && collectionId != 'users'
           && collectionId != 'audit_log'
           && collectionId != 'whatsappSettings'

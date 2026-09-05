@@ -17,6 +17,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     { name: "Dashboard", sub: ["View dashboard"] },
     { name: "Jobs", sub: ["View jobs", "Create jobs", "Edit jobs", "Assign jobs", "Change job status", "Close jobs", "Archive jobs", "Open closed jobs"] },
     { name: "Job Cards", sub: ["View job pricing", "Edit job forms", "Manage job tasks", "Manage job timers", "Manage job attachments", "Manage job photos", "Manage job materials", "Allocate serial numbers", "Mark job materials used", "Correct used job materials"] },
+    { name: "IQ200 Technician Assist", sub: ["Use IQ200 Technician Assist"] },
   ] },
   { title: "Customers & Suppliers", items: [
     { name: "Customers", sub: ["View customers", "Create customers", "Edit customer", "Delete customers", "Manage customer contacts", "Manage customer vehicles", "Manage recurring jobs"] },
@@ -53,7 +54,7 @@ export const ALL_PERMISSIONS = PERMISSION_SECTIONS.flatMap((section) => section.
 const roleGrants: Record<string, string[]> = {
   "Business Owner": ALL_PERMISSIONS,
   Administrator: ALL_PERMISSIONS,
-  "Technician/Artisan/Tradesman": ["Dashboard", "View dashboard", "Jobs", "View jobs", "Edit jobs", "Change job status", "Job Cards", "Edit job forms", "Manage job tasks", "Manage job timers", "Manage job attachments", "Manage job photos", "Manage job materials", "Allocate serial numbers", "Mark job materials used", "Inventory", "View inventory"],
+  "Technician/Artisan/Tradesman": ["Dashboard", "View dashboard", "Jobs", "View jobs", "Edit jobs", "Change job status", "Job Cards", "Edit job forms", "Manage job tasks", "Manage job timers", "Manage job attachments", "Manage job photos", "Manage job materials", "Allocate serial numbers", "Mark job materials used", "IQ200 Technician Assist", "Use IQ200 Technician Assist", "Inventory", "View inventory"],
   Accounts: ["Dashboard", "View dashboard", "Customers", "View customers", "Edit customer", "Suppliers", "View suppliers", "Quotes", "View quotes", "Approve quotes", "Invoices", "View invoices", "Create invoices", "Edit invoices", "Approve invoices", "Send invoices", "Record invoice payments", "Reports", "View reports", "Export reports", "Purchase Orders", "View purchase orders"],
   "Sales Rep": ["Dashboard", "View dashboard", "Jobs", "View jobs", "Create jobs", "Edit jobs", "Customers", "View customers", "Create customers", "Edit customer", "Manage customer contacts", "Queries", "View queries", "Create queries", "Edit queries", "Quotes", "View quotes", "Create quotes", "Edit quotes", "Send quotes", "Invoices", "View invoices"],
   Driver: ["Dashboard", "View dashboard", "Jobs", "View jobs", "Change job status", "Job Cards", "Manage job attachments", "Manage job photos", "Inventory", "View inventory", "Stock Control", "Perform stock transfers"],
