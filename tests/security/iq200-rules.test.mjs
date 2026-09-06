@@ -19,10 +19,12 @@ before(async () => {
     await setDoc(doc(db, "companies/company-a/users/iq200-a"), { active: true, primaryRole: "Other", permissions: { "View jobs": true, "Use IQ200 Technician Assist": true } });
     await setDoc(doc(db, "companies/company-a/jobs/job-a"), { companyId: "company-a", jobNumber: "NJ0001" });
     await setDoc(doc(db, "companies/company-a/jobs/job-a/iq200_sessions/session-a"), { companyId: "company-a", jobId: "job-a", createdBy: "user-a" });
+    await setDoc(doc(db, "companies/company-a/jobs/job-a/iq200_sessions/session-a/interactions/interaction-a"), { companyId: "company-a", jobId: "job-a", sessionId: "session-a", requestedBy: "user-a" });
     await setDoc(doc(db, "companies/company-a/iq200_known_fixes/fix-a"), { companyId: "company-a", status: "APPROVED", active: true });
     await setDoc(doc(db, "companies/company-b/users/user-b"), { active: true, primaryRole: "Technician/Artisan/Tradesman" });
     await setDoc(doc(db, "companies/company-b/jobs/job-b"), { companyId: "company-b", jobNumber: "NJ0002" });
     await setDoc(doc(db, "companies/company-b/jobs/job-b/iq200_sessions/session-b"), { companyId: "company-b", jobId: "job-b", createdBy: "user-b" });
+    await setDoc(doc(db, "companies/company-b/jobs/job-b/iq200_sessions/session-b/interactions/interaction-b"), { companyId: "company-b", jobId: "job-b", sessionId: "session-b", requestedBy: "user-b" });
   });
 });
 
@@ -66,6 +68,27 @@ async function assertAllSessionOperationsFail(db) {
 test("administrator and business owner browser clients remain denied", async () => {
   await assertAllSessionOperationsFail(environment.authenticatedContext("admin-a").firestore());
   await assertAllSessionOperationsFail(environment.authenticatedContext("owner-a").firestore());
+});
+
+test("reasoning interaction records remain server-only for every identity and operation", async () => {
+  const interactionsPath = "companies/company-a/jobs/job-a/iq200_sessions/session-a/interactions";
+  for (const uid of ["user-a", "admin-a", "owner-a", "iq200-a"]) {
+    const db = environment.authenticatedContext(uid).firestore();
+    const existing = doc(db, `${interactionsPath}/interaction-a`);
+    await assertFails(getDoc(existing));
+    await assertFails(getDocs(collection(db, interactionsPath)));
+    await assertFails(setDoc(doc(db, `${interactionsPath}/forged`), { success: true, response: { summary: "tampered" } }));
+    await assertFails(updateDoc(existing, { response: { summary: "tampered" } }));
+    await assertFails(deleteDoc(existing));
+  }
+  await assertFails(getDoc(doc(environment.unauthenticatedContext().firestore(), `${interactionsPath}/interaction-a`)));
+});
+
+test("interaction records cannot be read from another company", async () => {
+  const db = environment.authenticatedContext("user-a").firestore();
+  const foreign = doc(db, "companies/company-b/jobs/job-b/iq200_sessions/session-b/interactions/interaction-b");
+  await assertFails(getDoc(foreign));
+  await assertFails(getDocs(collection(db, "companies/company-b/jobs/job-b/iq200_sessions/session-b/interactions")));
 });
 
 test("a company member cannot read or enumerate another company's IQ200 sessions", async () => {
