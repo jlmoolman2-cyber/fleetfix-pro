@@ -36,7 +36,7 @@ export function mapHostedRunError(error:unknown):HostedRunErrorCode{
  if(error instanceof Error){
   const code=error.message;
   if(code==="REQUEST_IN_PROGRESS"||code==="RATE_LIMITED"||code==="COMPANY_LIMIT")return code;
-  if(code==="INVALID_LEASE_STATE"||code==="INVALID_IDEMPOTENCY_STATE"||code==="INVALID_RATE_STATE"||code==="STORAGE_FAILURE")return"STORAGE_FAILURE";
+  if(code==="INVALID_LEASE_STATE"||code==="INVALID_IDEMPOTENCY_STATE"||code==="INVALID_RATE_STATE"||code==="INVALID_COMMISSIONING_STATE"||code==="STORAGE_FAILURE")return"STORAGE_FAILURE";
   if(code==="CONFIGURATION_ERROR")return"CONFIGURATION_ERROR";
   if(code==="PROVIDER_TIMEOUT")return"TIMEOUT";
  }

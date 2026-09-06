@@ -2,12 +2,12 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { hostedIdempotencyKey, nextHostedRateCount, validateHostedControlIds } from "./hostedControlCore";
+import { hostedIdempotencyKey, nextHostedCommissioningCount, nextHostedRateCount, validateHostedControlIds } from "./hostedControlCore";
 
 export async function acquireHostedSessionLease(scope:{companyId:string;jobId:string;sessionId:string},now=Date.now(),leaseMs=30_000){validateHostedControlIds(scope.companyId,scope.jobId,scope.sessionId);const ref=adminDb.doc(`companies/${scope.companyId}/jobs/${scope.jobId}/iq200_sessions/${scope.sessionId}/hosted_controls/lease`),token=randomUUID(),expiresAt=Timestamp.fromMillis(now+Math.min(Math.max(leaseMs,1000),60_000));await adminDb.runTransaction(async transaction=>{const snapshot=await transaction.get(ref),expiry=snapshot.data()?.expiresAt;if(snapshot.exists&&expiry!==undefined&&typeof expiry?.toMillis!=="function")throw new Error("INVALID_LEASE_STATE");const active=snapshot.exists&&snapshot.data()?.state==="ACTIVE"&&expiry?.toMillis()>now;if(active)throw new Error("REQUEST_IN_PROGRESS");transaction.set(ref,{companyId:scope.companyId,jobId:scope.jobId,sessionId:scope.sessionId,state:"ACTIVE",token,expiresAt,updatedAt:FieldValue.serverTimestamp()})});return{token,ref};}
 export async function finishHostedSessionLease(lease:Awaited<ReturnType<typeof acquireHostedSessionLease>>,outcome:"SUCCEEDED"|"FAILED"){await adminDb.runTransaction(async transaction=>{const snapshot=await transaction.get(lease.ref);if(snapshot.exists&&snapshot.data()?.token===lease.token)transaction.update(lease.ref,{state:outcome,expiresAt:Timestamp.fromMillis(0),updatedAt:FieldValue.serverTimestamp()})})}
 export type HostedReservationResult={duplicate:boolean;inProgress:boolean;retryExhausted:boolean;retry:boolean;requestId:string|null;requestRef:FirebaseFirestore.DocumentReference|null};
-export async function reserveHostedRequest(input:{companyId:string;userId:string;jobId:string;sessionId:string;question:string;limits:{perUser:number;perCompany:number;perSession:number;companyPeriodRequests:number;periodSeconds:number}},now=Date.now(),maxAttempts=2){
+export async function reserveHostedRequest(input:{companyId:string;userId:string;jobId:string;sessionId:string;question:string;limits:{perUser:number;perCompany:number;perSession:number;companyPeriodRequests:number;periodSeconds:number}},now=Date.now(),maxAttempts=2,commissioning?:{phase:"PHASE_7";maxRequests:1}){
  validateHostedControlIds(input.companyId,input.userId,input.jobId,input.sessionId);const idempotencyKey=hostedIdempotencyKey(input.companyId,input.userId,input.jobId,input.sessionId,input.question),window=Math.floor(now/(input.limits.periodSeconds*1000)),base=`companies/${input.companyId}/iq200_hosted_controls`,dedupe=adminDb.doc(`${base}/idempotency_${idempotencyKey}`),requestRefFor=(requestId:string)=>adminDb.doc(`${base}/request_${requestId}`),refs=[[adminDb.doc(`${base}/user_${input.userId}_${window}`),input.limits.perUser],[adminDb.doc(`${base}/company_${window}`),Math.min(input.limits.perCompany,input.limits.companyPeriodRequests)],[adminDb.doc(`${base}/session_${input.sessionId}_${window}`),input.limits.perSession]] as const;
  return adminDb.runTransaction(async transaction=>{
   const existing=await transaction.get(dedupe);
@@ -23,10 +23,13 @@ export async function reserveHostedRequest(input:{companyId:string;userId:string
    }
    throw new Error("INVALID_IDEMPOTENCY_STATE");
   }
-  const snapshots=await Promise.all(refs.map(([ref])=>transaction.get(ref))),counts=snapshots.map((snapshot,index)=>{try{return nextHostedRateCount(snapshot.exists?snapshot.data()?.count:undefined,refs[index][1])}catch(error){if(error instanceof Error&&error.message==="RATE_LIMITED"&&index===1)throw new Error("COMPANY_LIMIT");throw error}}),requestId=randomUUID();
+  const snapshots=await Promise.all(refs.map(([ref])=>transaction.get(ref))),counts=snapshots.map((snapshot,index)=>{try{return nextHostedRateCount(snapshot.exists?snapshot.data()?.count:undefined,refs[index][1])}catch(error){if(error instanceof Error&&error.message==="RATE_LIMITED"&&index===1)throw new Error("COMPANY_LIMIT");throw error}}),commissioningRef=commissioning?adminDb.doc("iq200_hosted_commissioning/phase7"):null,commissioningSnapshot=commissioningRef?await transaction.get(commissioningRef):null,commissioningCount=commissioningSnapshot?.exists?commissioningSnapshot.data()?.count:0;
+  let nextCommissioningCount:number|null=null;if(commissioning){try{nextCommissioningCount=nextHostedCommissioningCount(commissioningCount)}catch(error){if(error instanceof Error&&error.message==="COMMISSIONING_LIMIT")throw new Error("COMPANY_LIMIT");throw error}}
+  const requestId=randomUUID();
   refs.forEach(([ref],index)=>transaction.set(ref,{companyId:input.companyId,scope:index===0?"USER":index===1?"COMPANY":"SESSION",count:counts[index],window,updatedAt:FieldValue.serverTimestamp()}));
   transaction.create(dedupe,{companyId:input.companyId,jobId:input.jobId,sessionId:input.sessionId,userId:input.userId,requestId,attempt:1,createdAt:FieldValue.serverTimestamp()});
   transaction.create(requestRefFor(requestId),{companyId:input.companyId,jobId:input.jobId,sessionId:input.sessionId,userId:input.userId,requestId,status:"RESERVED",createdAt:FieldValue.serverTimestamp()});
+  if(commissioningRef)transaction.set(commissioningRef,{phase:commissioning!.phase,count:nextCommissioningCount,companyId:input.companyId,jobId:input.jobId,sessionId:input.sessionId,requestId,status:"RESERVED",updatedAt:FieldValue.serverTimestamp()});
   return{duplicate:false,inProgress:false,retryExhausted:false,retry:false,requestId,requestRef:requestRefFor(requestId)};
  });
 }
