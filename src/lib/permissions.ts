@@ -17,7 +17,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     { name: "Dashboard", sub: ["View dashboard"] },
     { name: "Jobs", sub: ["View jobs", "Create jobs", "Edit jobs", "Assign jobs", "Change job status", "Close jobs", "Archive jobs", "Open closed jobs"] },
     { name: "Job Cards", sub: ["View job pricing", "Edit job forms", "Manage job tasks", "Manage job timers", "Manage job attachments", "Manage job photos", "Manage job materials", "Allocate serial numbers", "Mark job materials used", "Correct used job materials"] },
-    { name: "IQ200 Technician Assist", sub: ["Use IQ200 Technician Assist"] },
+    { name: "IQ200 Technician Assist", sub: ["Use IQ200 Technician Assist", "View IQ200 Known Fixes", "Manage IQ200 Known Fixes", "Approve IQ200 Known Fixes"] },
   ] },
   { title: "Customers & Suppliers", items: [
     { name: "Customers", sub: ["View customers", "Create customers", "Edit customer", "Delete customers", "Manage customer contacts", "Manage customer vehicles", "Manage recurring jobs"] },
@@ -67,9 +67,10 @@ export function permissionsForRole(role: string): Record<string, boolean> {
   return Object.fromEntries(ALL_PERMISSIONS.map((permission) => [permission, enabled.has(permission)]));
 }
 
-export function effectivePermissions(user: any): Record<string, boolean> {
-  const saved = user?.permissions && typeof user.permissions === "object" ? user.permissions : {};
-  const defaults = permissionsForRole(String(user?.primaryRole || user?.role || ""));
+export function effectivePermissions(user: unknown): Record<string, boolean> {
+  const record = user && typeof user === "object" ? user as Record<string, unknown> : {};
+  const saved = record.permissions && typeof record.permissions === "object" ? record.permissions as Record<string, unknown> : {};
+  const defaults = permissionsForRole(String(record.primaryRole || record.role || ""));
   return Object.fromEntries(ALL_PERMISSIONS.map((permission) => [
     permission,
     Object.prototype.hasOwnProperty.call(saved, permission)

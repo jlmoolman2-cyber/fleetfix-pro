@@ -1,0 +1,2 @@
+import { changeKnownFixStatus, updateKnownFix } from "@/lib/iq200/knownFixService"; import { authenticateServerRequest, safeServerErrorResponse } from "@/lib/serverAuth";
+export async function PATCH(request:Request,{params}:{params:Promise<{id:string}>}){try{const context=await authenticateServerRequest(request);const body=await request.json();return Response.json(body?.action?await changeKnownFixStatus(context,(await params).id,String(body.action)):await updateKnownFix(context,(await params).id,body))}catch(error){return safeServerErrorResponse(error)}}

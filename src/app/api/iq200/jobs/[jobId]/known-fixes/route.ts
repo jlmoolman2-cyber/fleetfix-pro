@@ -1,0 +1,2 @@
+import { searchKnownFixesForJob } from "@/lib/iq200/knownFixService"; import { authenticateServerRequest, safeServerErrorResponse } from "@/lib/serverAuth";
+export async function GET(request:Request,{params}:{params:Promise<{jobId:string}>}){try{return Response.json(await searchKnownFixesForJob(await authenticateServerRequest(request),(await params).jobId,request.url),{headers:{"cache-control":"no-store"}})}catch(error){return safeServerErrorResponse(error)}}

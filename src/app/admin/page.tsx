@@ -106,6 +106,12 @@ const sections = [
     icon: "EXEC",
   },
   {
+    title: "IQ200 Known Fixes",
+    description: "Curate and approve controlled technical knowledge",
+    href: "/admin/iq200-known-fixes",
+    icon: "IQ200",
+  },
+  {
     title: "Job Form Templates",
     description: "Message Templates to Users, Customers, Suppliers",
     href: "/admin/jobforms",

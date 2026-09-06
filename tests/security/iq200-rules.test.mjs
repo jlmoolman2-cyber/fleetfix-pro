@@ -15,12 +15,35 @@ before(async () => {
     await setDoc(doc(db, "companies/company-a/users/user-a"), { active: true, primaryRole: "Technician/Artisan/Tradesman", permissions: { "View jobs": true, "Use IQ200 Technician Assist": true } });
     await setDoc(doc(db, "companies/company-a/users/admin-a"), { active: true, primaryRole: "Administrator" });
     await setDoc(doc(db, "companies/company-a/users/owner-a"), { active: true, primaryRole: "Business Owner" });
+    await setDoc(doc(db, "companies/company-a/users/permissions-a"), { active: true, primaryRole: "Other", permissions: { "View IQ200 Known Fixes": true, "Manage IQ200 Known Fixes": true, "Approve IQ200 Known Fixes": true } });
+    await setDoc(doc(db, "companies/company-a/users/iq200-a"), { active: true, primaryRole: "Other", permissions: { "View jobs": true, "Use IQ200 Technician Assist": true } });
     await setDoc(doc(db, "companies/company-a/jobs/job-a"), { companyId: "company-a", jobNumber: "NJ0001" });
     await setDoc(doc(db, "companies/company-a/jobs/job-a/iq200_sessions/session-a"), { companyId: "company-a", jobId: "job-a", createdBy: "user-a" });
+    await setDoc(doc(db, "companies/company-a/iq200_known_fixes/fix-a"), { companyId: "company-a", status: "APPROVED", active: true });
     await setDoc(doc(db, "companies/company-b/users/user-b"), { active: true, primaryRole: "Technician/Artisan/Tradesman" });
     await setDoc(doc(db, "companies/company-b/jobs/job-b"), { companyId: "company-b", jobNumber: "NJ0002" });
     await setDoc(doc(db, "companies/company-b/jobs/job-b/iq200_sessions/session-b"), { companyId: "company-b", jobId: "job-b", createdBy: "user-b" });
   });
+});
+
+async function assertAllKnownFixOperationsFail(db, companyId = "company-a") {
+  const existing=doc(db,`companies/${companyId}/iq200_known_fixes/fix-a`);
+  await assertFails(getDoc(existing));
+  await assertFails(getDocs(collection(db,`companies/${companyId}/iq200_known_fixes`)));
+  await assertFails(setDoc(doc(db,`companies/${companyId}/iq200_known_fixes/new`),{status:"APPROVED"}));
+  await assertFails(updateDoc(existing,{title:"tampered"}));
+  await assertFails(deleteDoc(existing));
+}
+
+test("Known Fix records remain server-only for every browser identity and operation", async () => {
+  await assertAllKnownFixOperationsFail(environment.unauthenticatedContext().firestore());
+  for (const uid of ["user-a", "admin-a", "owner-a", "permissions-a", "iq200-a"]) {
+    await assertAllKnownFixOperationsFail(environment.authenticatedContext(uid).firestore());
+  }
+});
+
+test("Known Fix parent wildcard cannot expose another company", async () => {
+  await assertAllKnownFixOperationsFail(environment.authenticatedContext("user-a").firestore(), "company-b");
 });
 
 after(async () => environment?.cleanup());

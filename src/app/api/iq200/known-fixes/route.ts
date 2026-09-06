@@ -1,0 +1,3 @@
+import { createKnownFix, listKnownFixes } from "@/lib/iq200/knownFixService"; import { authenticateServerRequest, safeServerErrorResponse } from "@/lib/serverAuth";
+export async function GET(request:Request){try{return Response.json(await listKnownFixes(await authenticateServerRequest(request)),{headers:{"cache-control":"no-store"}})}catch(error){return safeServerErrorResponse(error)}}
+export async function POST(request:Request){try{return Response.json(await createKnownFix(await authenticateServerRequest(request),await request.json()),{status:201})}catch(error){return safeServerErrorResponse(error)}}

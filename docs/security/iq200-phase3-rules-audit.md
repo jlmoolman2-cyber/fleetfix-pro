@@ -1,0 +1,7 @@
+# IQ200 Phase 3 rules audit
+
+Known Fixes use `companies/{companyId}/iq200_known_fixes/{knownFixId}`. Records contain curated technical content, lifecycle state, active flag, revision, server timestamps, and creator/updater/approver UIDs. All reads and writes use Firebase Admin through authenticated, company-scoped APIs.
+
+The browser rule is unconditional deny for read and write. The broader company wildcard explicitly excludes `iq200_known_fixes`, so overlapping matches cannot grant access. Emulator tests cover unauthenticated, Technician, Administrator, Business Owner, an IQ200-authorized user, and a user with all three Known Fix permissions attempting get, list, create, update, and delete operations. The tested operations are denied. Server validation rejects unsupported fields, oversized strings/arrays, arbitrary statuses, creator/approval spoofing, and malformed related-job IDs. Company collection paths are derived from authenticated membership. Approved edits return to Draft and clear approval metadata.
+
+The review covered public listing, record-ID guessing, direct cross-company browser access, privilege escalation, draft/inactive technician filtering, forged approval/status/company fields, oversized payloads, schema pollution, and parent-wildcard bypass. The emulator directly demonstrates browser-rule behavior; server workflow and tenant scoping are additionally covered by focused source-level tests. No Known Fix browser-rule bypass was found in the tested cases.

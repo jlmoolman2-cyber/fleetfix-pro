@@ -151,6 +151,11 @@ service cloud.firestore {
         }
       }
 
+      // IQ200 technical knowledge is curated exclusively through server APIs.
+      match /iq200_known_fixes/{knownFixId}/{document=**} {
+        allow read, write: if false;
+      }
+
       match /{protectedCollection}/{document=**} {
         allow read, write: if false;
       }
@@ -158,12 +163,14 @@ service cloud.firestore {
       match /{collectionId}/{document=**} {
         allow read: if isCompanyMember(companyId)
           && collectionId != 'jobs'
+          && collectionId != 'iq200_known_fixes'
           && collectionId != 'users'
           && collectionId != 'audit_log'
           && collectionId != 'whatsappSettings'
           && !isServerOnlyCollection(collectionId);
         allow create, update, delete: if isCompanyMember(companyId)
           && collectionId != 'jobs'
+          && collectionId != 'iq200_known_fixes'
           && collectionId != 'users'
           && collectionId != 'audit_log'
           && collectionId != 'whatsappSettings'
