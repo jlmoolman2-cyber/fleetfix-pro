@@ -37,15 +37,57 @@ env:
     value: "1:764335805140:web:26356282489d5ab2e3e141"
     availability: [BUILD, RUNTIME]
 
-  # IQ200 hosted reasoning remains closed for this readiness deployment.
+  # IQ200 Phase 7 staging configuration: reasoning and hosted provider armed, commissioning remains closed.
   - variable: IQ200_REASONING_ENABLED
-    value: "false"
+    value: "true"
     availability: [RUNTIME]
   - variable: IQ200_HOSTED_PROVIDER_ENABLED
-    value: "false"
+    value: "true"
     availability: [RUNTIME]
   - variable: IQ200_PHASE7_COMMISSIONING_ENABLED
     value: "false"
+    availability: [RUNTIME]
+  - variable: IQ200_HOSTED_PROVIDER
+    value: "openai"
+    availability: [RUNTIME]
+  - variable: IQ200_HOSTED_MODEL
+    value: "gpt-5-mini"
+    availability: [RUNTIME]
+  - variable: IQ200_PHASE7_COMPANY_ID
+    value: "comp_001"
+    availability: [RUNTIME]
+  - variable: IQ200_PHASE7_JOB_ID
+    value: "u3da4IKDxIhTO5see0if"
+    availability: [RUNTIME]
+  - variable: IQ200_PHASE7_SESSION_ID
+    value: "dT7aCNIQ0iMK6pgTGvqN"
+    availability: [RUNTIME]
+  - variable: IQ200_RATE_USER_PER_HOUR
+    value: "1"
+    availability: [RUNTIME]
+  - variable: IQ200_RATE_COMPANY_PER_HOUR
+    value: "1"
+    availability: [RUNTIME]
+  - variable: IQ200_RATE_SESSION_PER_HOUR
+    value: "1"
+    availability: [RUNTIME]
+  - variable: IQ200_COMPANY_PERIOD_REQUESTS
+    value: "1"
+    availability: [RUNTIME]
+  - variable: IQ200_LIMIT_PERIOD_SECONDS
+    value: "3600"
+    availability: [RUNTIME]
+  - variable: IQ200_MAX_INPUT_CHARS
+    value: "20000"
+    availability: [RUNTIME]
+  - variable: IQ200_MAX_OUTPUT_CHARS
+    value: "10000"
+    availability: [RUNTIME]
+  - variable: IQ200_MAX_OUTPUT_TOKENS
+    value: "1024"
+    availability: [RUNTIME]
+  - variable: OPENAI_API_KEY
+    secret: openaiApiKey
     availability: [RUNTIME]
 
   - variable: META_APP_SECRET
