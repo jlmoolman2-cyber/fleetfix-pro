@@ -19,6 +19,7 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
   const [knownFixes, setKnownFixes] = useState<KnownFix[]>([]);
   const [assessment,setAssessment]=useState<ReasoningResponse|null>(null);
   const [reasoningMessage,setReasoningMessage]=useState("");
+  const [commissioningSessionId, setCommissioningSessionId] = useState<string | null>(null);
   const [question, setQuestion] = useState("");
   const [search, setSearch] = useState("");
   const [faultCode, setFaultCode] = useState("");
@@ -66,6 +67,34 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
     finally { setSaving(false); }
   }
 
+  async function runCommissioning(sessionId: string, question: string | undefined) {
+    if (!question?.trim()) {
+      setError("Session has no question to commission.");
+      return;
+    }
+
+    try {
+      setCommissioningSessionId(sessionId);
+      setError("");
+
+      const reasoning = await iq200Api<{ message: string; response: ReasoningResponse | null }>(
+        `/api/iq200/jobs/${encodeURIComponent(id)}/sessions/${encodeURIComponent(sessionId)}/reason`,
+        { method: "POST", body: JSON.stringify({ question }) }
+      );
+
+      setAssessment(reasoning.response);
+      setReasoningMessage(reasoning.message);
+
+      const refreshed = await iq200Api<{ sessions: Session[] }>(
+        `/api/iq200/jobs/${encodeURIComponent(id)}/sessions`
+      );
+      setSessions(refreshed.sessions);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Phase 7 commissioning failed.");
+    } finally {
+      setCommissioningSessionId(null);
+    }
+  }
   async function searchHistory(event: React.FormEvent) {
     event.preventDefault();
     try { setSearching(true); setHistoryError(""); await loadHistory({ q: search, faultCode, vehicleOnly }); }
@@ -91,7 +120,7 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
 
     <section className="rounded-3xl border bg-white p-5 shadow-sm sm:p-7"><div className="flex items-center gap-3"><Wrench className="text-blue-600"/><div><h2 className="text-xl font-black">Start a technician-assist session</h2><p className="text-sm text-slate-500">Your question and structured response stay separate from normal job notes.</p></div></div><form onSubmit={startSession} className="mt-5"><label className="text-sm font-bold text-slate-700">What are you seeing on the vehicle?<textarea value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={2000} rows={5} placeholder="Example: Truck is cranking but not starting. Where should I test next?" className="mt-2 w-full resize-y rounded-2xl border border-slate-300 p-4 font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"/></label>{error && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}<button disabled={saving || !question.trim()} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-black text-white disabled:opacity-40 sm:w-auto"><Send size={17}/>{saving ? "Creating assessment…" : "Ask IQ200"}</button></form>{reasoningMessage&&<div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{reasoningMessage}</div>}</section>
     {assessment&&<ReasoningAssessment response={assessment}/>}
-    {sessions.length > 0 && <section className="rounded-3xl border bg-white p-5 sm:p-7"><h2 className="text-xl font-black">Job IQ200 sessions</h2><div className="mt-4 space-y-3">{sessions.map((session) => <article key={session.id} className="rounded-2xl border bg-slate-50 p-4"><p className="whitespace-pre-wrap font-semibold text-slate-800">{session.initialQuestion || "Session started"}</p><p className="mt-2 text-xs font-bold uppercase text-slate-500">Context ready · AI response not enabled</p></article>)}</div></section>}
+    {sessions.length > 0 && <section className="rounded-3xl border bg-white p-5 sm:p-7"><h2 className="text-xl font-black">Job IQ200 sessions</h2><div className="mt-4 space-y-3">{sessions.map((session) => <article key={session.id} className="rounded-2xl border bg-slate-50 p-4"><p className="whitespace-pre-wrap font-semibold text-slate-800">{session.initialQuestion || "Session started"}</p><p className="mt-2 text-xs font-bold uppercase text-slate-500">{session.state || "CREATED"} · {session.responseStatus || "PENDING"}</p>{process.env.NEXT_PUBLIC_FLEETFIX_ENVIRONMENT === "staging" && session.responseStatus === "AI_NOT_ENABLED" && <button type="button" disabled={commissioningSessionId === session.id} onClick={() => runCommissioning(session.id, session.initialQuestion)} className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-black text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50">{commissioningSessionId === session.id ? "Running..." : "Run Phase 7 Commissioning"}</button>}</article>)}</div></section>}
   </div></main>;
 }
 
