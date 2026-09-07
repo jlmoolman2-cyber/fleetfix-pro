@@ -16,14 +16,37 @@ env:
     value: "staging"
     availability: [BUILD, RUNTIME]
 
-  # Add these registered fleetfix-pro-staging Web App values before deployment.
-  # They are public Firebase settings, not Secret Manager secrets:
-  # - NEXT_PUBLIC_FIREBASE_API_KEY
-  # - NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-  # - NEXT_PUBLIC_FIREBASE_PROJECT_ID
-  # - NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
-  # - NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-  # - NEXT_PUBLIC_FIREBASE_APP_ID
+  # Registered fleetfix-pro-staging Web App values. These are public Firebase
+  # client settings, not Secret Manager secrets.
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyBvlGk21WCly5rkaeedLLRB7eblYXit0cc"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "fleetfix-pro-staging.firebaseapp.com"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "fleetfix-pro-staging"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "fleetfix-pro-staging.firebasestorage.app"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "764335805140"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:764335805140:web:26356282489d5ab2e3e141"
+    availability: [BUILD, RUNTIME]
+
+  # IQ200 hosted reasoning remains closed for this readiness deployment.
+  - variable: IQ200_REASONING_ENABLED
+    value: "false"
+    availability: [RUNTIME]
+  - variable: IQ200_HOSTED_PROVIDER_ENABLED
+    value: "false"
+    availability: [RUNTIME]
+  - variable: IQ200_PHASE7_COMMISSIONING_ENABLED
+    value: "false"
+    availability: [RUNTIME]
 
   - variable: META_APP_SECRET
     secret: metaAppSecret
