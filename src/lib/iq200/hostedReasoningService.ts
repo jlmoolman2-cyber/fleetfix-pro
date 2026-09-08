@@ -31,8 +31,8 @@ function runHostedServerError(error:unknown):never{
 
 function hostedReservation(reservation:Awaited<ReturnType<typeof reserveHostedRequest>>){return{duplicate:reservation.duplicate,inProgress:reservation.inProgress,retryExhausted:reservation.retryExhausted,retry:reservation.retry,requestId:reservation.requestId}}
 
-const PHASE7_RECOVERY_COMMISSIONING={phase:"PHASE_7" as const,maxRequests:1 as const,ledger:"phase7_retry4",idempotencyNamespace:"phase7_retry4"};
-const PHASE7_RECOVERY_LEDGER_PATH="iq200_hosted_commissioning/phase7_retry4";
+const PHASE7_RECOVERY_COMMISSIONING={phase:"PHASE_7" as const,maxRequests:1 as const,ledger:"phase7_retry5",idempotencyNamespace:"phase7_retry5"};
+const PHASE7_RECOVERY_LEDGER_PATH="iq200_hosted_commissioning/phase7_retry5";
 
 export async function runHostedReasoning(context:ServerUserContext,jobId:string,sessionId:string,question:string,currentData:DocumentData,sessionRef:FirebaseFirestore.DocumentReference,overrides:{config?:HostedReasoningConfig;provider?:IQ200ReasoningProvider;transport?:HostedReasoningTransport;timeoutMs?:number;gate?:(config:HostedReasoningConfig)=>boolean}={}):Promise<HostedExecutionOutcome>{
  const config=overrides.config??getHostedReasoningServerConfig();

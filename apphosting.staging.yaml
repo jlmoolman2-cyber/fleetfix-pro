@@ -84,7 +84,7 @@ env:
     value: "10000"
     availability: [RUNTIME]
   - variable: IQ200_MAX_OUTPUT_TOKENS
-    value: "1024"
+    value: "4096"
     availability: [RUNTIME]
   - variable: OPENAI_API_KEY
     secret: openaiApiKey

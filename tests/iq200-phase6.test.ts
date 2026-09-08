@@ -101,7 +101,7 @@ const stagingEnv: Record<string, string> = {
   IQ200_LIMIT_PERIOD_SECONDS: "3600",
   IQ200_MAX_INPUT_CHARS: "20000",
   IQ200_MAX_OUTPUT_CHARS: "10000",
-  IQ200_MAX_OUTPUT_TOKENS: "1024"
+  IQ200_MAX_OUTPUT_TOKENS: "4096"
 };
 
 // ============================================================================
