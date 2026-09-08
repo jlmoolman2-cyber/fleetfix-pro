@@ -322,15 +322,32 @@ test("C2: idempotency identity is server derived and binds tenant, user, job, se
 // D. PROVIDER RESPONSE SAFETY
 // ============================================================================
 
+test("D0: response envelope accepts message-only and reasoning-plus-message structured output", () => {
+  const output_text = JSON.stringify(validResponse());
+  for (const output of [[{ type: "message" }], [{ type: "reasoning" }, { type: "message" }]]) {
+    const parsed = parseOpenAIResponseEnvelope({ status: "completed", output, output_text, usage: { input_tokens: 12, output_tokens: 34 } });
+    assert.deepEqual(parsed.response, validResponse());
+    assert.deepEqual(parsed.usage, { inputUnits: 12, outputUnits: 34 });
+  }
+});
+
 test("D1: parseOpenAIResponseEnvelope rejects malformed output envelopes", () => {
   const badEnvelopes = [
     null,
     undefined,
     {},
     { status: "in_progress" },
+    { status: "incomplete", output: [{ type: "message" }], output_text: JSON.stringify(validResponse()) },
+    { status: "cancelled", output: [{ type: "message" }], output_text: JSON.stringify(validResponse()) },
+    { status: "queued", output: [{ type: "message" }], output_text: JSON.stringify(validResponse()) },
     { status: "failed" },
     { status: "completed", output: [] },
     { status: "completed", output: [{ type: "reasoning" }] },
+    { status: "completed", output: [{ type: "function_call" }, { type: "message" }], output_text: JSON.stringify(validResponse()) },
+    { status: "completed", output: [{ type: "computer_call" }, { type: "message" }], output_text: JSON.stringify(validResponse()) },
+    { status: "completed", output: [{ type: "unknown_future_item" }, { type: "message" }], output_text: JSON.stringify(validResponse()) },
+    { status: "completed", output: [{ type: "message", content: [{ type: "refusal" }] }], output_text: JSON.stringify(validResponse()) },
+    { status: "completed", output: [{ type: "message" }] },
     { status: "completed", output: [{ type: "message" }], output_text: "" },
     { status: "completed", output: [{ type: "message" }], output_text: "   " },
     { status: "completed", output: [{ type: "message" }], output_text: "not valid json" }
@@ -338,6 +355,16 @@ test("D1: parseOpenAIResponseEnvelope rejects malformed output envelopes", () =>
   for (const env of badEnvelopes) {
     assert.throws(() => parseOpenAIResponseEnvelope(env as unknown as import("../src/lib/iq200/openaiTransportCore.ts").OpenAIResponseEnvelope), (err: unknown) => err instanceof HostedProviderError && err.category === "INVALID_PROVIDER_RESPONSE");
   }
+});
+
+test("D1b: mixed reasoning/message output continues through advisory and evidence validation", () => {
+  const mixed=(response:ReasoningResponse)=>parseOpenAIResponseEnvelope({status:"completed",output:[{type:"reasoning"},{type:"message"}],output_text:JSON.stringify(response)}).response;
+  const allowed=evidenceReferenceSet(evidence);
+  assert.deepEqual(validateReasoningResponse(validateHostedAdvisoryResponse(mixed(validResponse())),allowed),validResponse());
+  const fabricated={...validResponse(),evidenceUsed:[{category:"CURRENT_JOB" as const,reference:"FABRICATED_REF",detail:"fake"}]};
+  assert.throws(()=>validateReasoningResponse(validateHostedAdvisoryResponse(mixed(fabricated)),allowed),/INVALID_PROVIDER_RESPONSE/);
+  const unsafe={...validResponse(),summary:"Replace the high pressure fuel pump immediately."};
+  assert.throws(()=>validateHostedAdvisoryResponse(mixed(unsafe)),/SAFETY_VALIDATION_FAILED/);
 });
 
 test("D2: validateReasoningResponse rejects unknown fields and chain-of-thought", () => {
@@ -618,6 +645,14 @@ test("H5: runHostedExecutionCore rejects when retry is exhausted and marks lease
   assert.equal(leaseFinished, "FAILED");
   assert.equal(persistedFailureError, null);
   assert.equal(providerCalled, false);
+});
+
+test("D2b: runtime semantic string limits intentionally remain stricter than the generation schema", () => {
+  const allowed=evidenceReferenceSet(evidence);
+  assert.throws(()=>validateReasoningResponse({...validResponse(),summary:""},allowed),/INVALID_PROVIDER_RESPONSE/);
+  assert.throws(()=>validateReasoningResponse({...validResponse(),summary:"x".repeat(2001)},allowed),/INVALID_PROVIDER_RESPONSE/);
+  assert.throws(()=>validateReasoningResponse({...validResponse(),hypotheses:[{...validResponse().hypotheses[0],title:"x".repeat(301)}]},allowed),/INVALID_PROVIDER_RESPONSE/);
+  assert.throws(()=>validateReasoningResponse({...validResponse(),observations:["x".repeat(501)]},allowed),/INVALID_PROVIDER_RESPONSE/);
 });
 
 test("H6: runHostedExecutionCore enforces input bounds and rejects before acquiring lease", async () => {
