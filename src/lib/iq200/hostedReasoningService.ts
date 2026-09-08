@@ -8,7 +8,7 @@ import { HostedReasoningProvider, type HostedReasoningTransport } from "./hosted
 import { OpenAIReasoningTransport } from "./openaiTransport";
 import { DisabledReasoningProvider, type IQ200ReasoningProvider } from "./reasoningProvider";
 import { acquireHostedSessionLease, finishHostedSessionLease, reserveHostedRequest } from "./hostedControls";
-import { withHostedAbortTimeout } from "./hostedTransportCore";
+import { HOSTED_REASONING_TIMEOUT_MS, withHostedAbortTimeout } from "./hostedTransportCore";
 import { runHostedExecutionCore, HostedRunError, type HostedExecutionControls, type HostedExecutionOutcome, type HostedExecutionScope } from "./hostedReasoningCore.ts";
 import type { ReasoningResponse } from "./reasoningCore.ts";
 import { evidencePackage } from "./reasoningService";
@@ -53,7 +53,7 @@ export async function runHostedReasoning(context:ServerUserContext,jobId:string,
   provider:(evidence,signal)=>provider.reason(evidence,signal),
   withTimeout:withHostedAbortTimeout,
   maxEvidenceChars:config.limits.maxInputChars,
-  timeoutMs:overrides.timeoutMs??5000,
+  timeoutMs:overrides.timeoutMs??HOSTED_REASONING_TIMEOUT_MS,
   now:Date.now,
  };
  try{return await runHostedExecutionCore(controls,scope)}catch(error){runHostedServerError(error)}

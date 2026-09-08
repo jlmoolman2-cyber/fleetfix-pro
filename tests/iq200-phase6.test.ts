@@ -4,7 +4,7 @@ import test from "node:test";
 import { buildHostedProviderRequest, prepareHostedReasoningEvidence, redactHostedText, validateHostedAdvisoryResponse, IQ200_RESPONSE_SCHEMA_NAME } from "../src/lib/iq200/hostedEvidence.ts";
 import { hostedCommissioningReadiness, hostedExecutionAllowed, hostedReasoningConfig, IQ200_HOSTED_COMMISSIONING_ARMED, IQ200_HOSTED_POLICY_VERSION } from "../src/lib/iq200/hostedConfig.ts";
 import { classifyOpenAITransportError, CoreOpenAIReasoningTransport, IQ200_OPENAI_RESPONSE_SCHEMA, openAIResponsesBody, parseOpenAIResponseEnvelope, type OpenAIResponsesClient } from "../src/lib/iq200/openaiTransportCore.ts";
-import { HostedProviderError, HostedTransportHttpError, safeHostedFailure } from "../src/lib/iq200/hostedTransportCore.ts";
+import { HOSTED_REASONING_TIMEOUT_MS, HostedProviderError, HostedTransportHttpError, safeHostedFailure, withHostedAbortTimeout } from "../src/lib/iq200/hostedTransportCore.ts";
 import { hostedIdempotencyKey } from "../src/lib/iq200/hostedControlCore.ts";
 import { runHostedExecutionCore, HostedRunError, mapHostedRunError, type HostedExecutionControls, type HostedExecutionScope } from "../src/lib/iq200/hostedReasoningCore.ts";
 import { evidenceReferenceSet, mergeRequiredSafetyWarnings, validateProviderUsage, validateReasoningQuestion, validateReasoningResponse, type ReasoningEvidence, type ReasoningResponse } from "../src/lib/iq200/reasoningCore.ts";
@@ -183,6 +183,21 @@ test("A4: transport forwards AbortSignal and safely classifies cancellation as T
   assert.equal((receivedSignal as AbortSignal).aborted, true);
 });
 
+test("A4b: hosted timeout defaults to 30 seconds while an internal test override still aborts safely", async () => {
+  assert.equal(HOSTED_REASONING_TIMEOUT_MS, 30_000);
+  let signalWasAborted = false;
+  await assert.rejects(
+    () => withHostedAbortTimeout(signal => new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => {
+        signalWasAborted = signal.aborted;
+        reject(new Error("aborted"));
+      });
+    }), 1),
+    (err: unknown) => err instanceof HostedProviderError && err.category === "TIMEOUT"
+  );
+  assert.equal(signalWasAborted, true);
+});
+
 test("A5: CoreOpenAIReasoningTransport works with injected mock client and parses valid envelope", async () => {
   const sampleResp = validResponse();
   const mockClient: OpenAIResponsesClient = {
@@ -276,6 +291,7 @@ test("C1: browser cannot authoritatively choose provider, model, keys, limits, t
     { question: "Valid question", commissioning: true },
     { question: "Valid question", rateLimit: 1000 },
     { question: "Valid question", idempotencyKey: "client-controlled" },
+    { question: "Valid question", timeoutMs: 120_000 },
     { question: "Valid question", extra: "forbidden" },
     { question: "" },
     { question: "   " },
