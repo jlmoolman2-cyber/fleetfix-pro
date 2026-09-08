@@ -591,14 +591,17 @@ test("H4: runHostedExecutionCore persists failure and releases lease on provider
 test("H5: runHostedExecutionCore rejects when retry is exhausted and marks lease failed", async () => {
   let leaseFinished: string | null = null;
   let persistedFailureError: string | null = null;
+  let providerCalled = false;
   const controls = baseControls({
     reserve: async () => ({ duplicate: true, inProgress: false, retryExhausted: true, retry: false, requestId: "req-exhausted" }),
     finishLease: async (_lease, outcome) => { leaseFinished = outcome; },
-    persistFailure: async ({ errorClass }) => { persistedFailureError = errorClass; }
+    persistFailure: async ({ errorClass }) => { persistedFailureError = errorClass; },
+    provider: async () => { providerCalled = true; throw new Error("provider must not run"); }
   });
   await assert.rejects(() => runHostedExecutionCore(controls, scope), (err: unknown) => err instanceof HostedRunError && err.code === "RETRY_EXHAUSTED");
   assert.equal(leaseFinished, "FAILED");
-  assert.equal(persistedFailureError, "RETRY_EXHAUSTED");
+  assert.equal(persistedFailureError, null);
+  assert.equal(providerCalled, false);
 });
 
 test("H6: runHostedExecutionCore enforces input bounds and rejects before acquiring lease", async () => {

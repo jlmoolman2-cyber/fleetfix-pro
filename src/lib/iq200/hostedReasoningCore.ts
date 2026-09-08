@@ -45,7 +45,7 @@ export function mapHostedRunError(error:unknown):HostedRunErrorCode{
 
 export async function runHostedExecutionCore(controls:HostedExecutionControls,scope:HostedExecutionScope):Promise<HostedExecutionOutcome>{
  const started=controls.now(),evidence=await controls.buildEvidence();if(JSON.stringify(evidence).length>controls.maxEvidenceChars)throw new HostedRunError("COMPANY_LIMIT");
- let lease:{token:string;ref:unknown}|null=null,reservation:HostedReservation|null=null,requestId:string|null=null;
+ let lease:{token:string;ref:unknown}|null=null,reservation:HostedReservation|null=null,requestId:string|null=null,reservedByThisRun=false;
  try{
   lease=await controls.acquireLease(scope);
   reservation=await controls.reserve(scope);requestId=reservation.requestId;
@@ -56,6 +56,7 @@ export async function runHostedExecutionCore(controls:HostedExecutionControls,sc
    throw new HostedRunError("INVALID_PROVIDER_RESPONSE");
   }
   if(reservation.retryExhausted)throw new HostedRunError("RETRY_EXHAUSTED");
+  reservedByThisRun=true;
   const result=await controls.withTimeout(signal=>controls.provider(evidence,signal),controls.timeoutMs);
   const allowed=evidenceReferenceSet(evidence),structured=validateReasoningResponse(result.response,allowed),response=validateReasoningResponse(mergeRequiredSafetyWarnings(structured,evidence),allowed),usage=validateProviderUsage(result.usage);
   const interactionId=await controls.persistSuccess({scope,requestId:requestId??"",response,provider:result.provider,model:result.model,usage,latencyMs:controls.now()-started});
@@ -63,7 +64,7 @@ export async function runHostedExecutionCore(controls:HostedExecutionControls,sc
   return{kind:"SUCCEEDED",featureState:"HOSTED",message:"Hosted IQ200 reasoning generated.",interactionId,requestId:requestId??"",response,retried:reservation.retry===true};
  }catch(error){
   const errorClass=mapHostedRunError(error);
-  if(requestId){try{await controls.persistFailure({scope,requestId,errorClass,latencyMs:controls.now()-started})}catch{}}
+  if(requestId&&reservedByThisRun){try{await controls.persistFailure({scope,requestId,errorClass,latencyMs:controls.now()-started})}catch{}}
   if(lease){try{await controls.finishLease(lease,"FAILED")}catch{}}
   throw error instanceof HostedRunError?error:new HostedRunError(errorClass);
  }
