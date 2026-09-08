@@ -45,7 +45,7 @@ env:
     value: "true"
     availability: [RUNTIME]
   - variable: IQ200_PHASE7_COMMISSIONING_ENABLED
-    value: "true"
+    value: "false"
     availability: [RUNTIME]
   - variable: IQ200_HOSTED_PROVIDER
     value: "openai"
