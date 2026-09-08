@@ -1,5 +1,5 @@
-import { evidenceReferenceSet, mergeRequiredSafetyWarnings, validateProviderUsage, validateReasoningResponse, type ReasoningEvidence, type ReasoningResponse } from "./reasoningCore.ts";
-import { HostedProviderError } from "./hostedTransportCore.ts";
+import { evidenceReferenceSet, mergeRequiredSafetyWarnings, ProviderValidationError, validateProviderUsage, validateReasoningResponse, type ReasoningEvidence, type ReasoningResponse } from "./reasoningCore.ts";
+import { HostedProviderError, type HostedValidationReason } from "./hostedTransportCore.ts";
 
 export type HostedExecutionScope={companyId:string;userId:string;jobId:string;sessionId:string;question:string};
 export type HostedReservation={duplicate:boolean;inProgress:boolean;retryExhausted:boolean;retry:boolean;requestId:string|null};
@@ -15,7 +15,7 @@ export type HostedExecutionControls={
  reserve(input:HostedExecutionScope):Promise<HostedReservation>;
  loadPriorResult(requestId:string):Promise<HostedPriorResult>;
  persistSuccess(args:{scope:HostedExecutionScope;requestId:string;response:ReasoningResponse;provider:string;model:string;usage:{inputUnits:number|null;outputUnits:number|null};latencyMs:number}):Promise<string>;
- persistFailure(args:{scope:HostedExecutionScope;requestId:string;errorClass:string;latencyMs:number}):Promise<void>;
+ persistFailure(args:{scope:HostedExecutionScope;requestId:string;errorClass:string;validationReason:HostedValidationReason|null;latencyMs:number}):Promise<void>;
  buildEvidence():Promise<ReasoningEvidence>;
  provider(evidence:ReasoningEvidence,signal:AbortSignal):Promise<HostedProviderResult>;
  withTimeout<T>(work:(signal:AbortSignal)=>Promise<T>,timeoutMs:number):Promise<T>;
@@ -33,6 +33,7 @@ export type HostedExecutionOutcome=
 export function mapHostedRunError(error:unknown):HostedRunErrorCode{
  if(error instanceof HostedRunError)return error.code;
  if(error instanceof HostedProviderError)return error.category as HostedRunErrorCode;
+ if(error instanceof ProviderValidationError)return"INVALID_PROVIDER_RESPONSE";
  if(error instanceof Error){
   const code=error.message;
   if(code==="REQUEST_IN_PROGRESS"||code==="RATE_LIMITED"||code==="COMPANY_LIMIT")return code;
@@ -64,7 +65,8 @@ export async function runHostedExecutionCore(controls:HostedExecutionControls,sc
   return{kind:"SUCCEEDED",featureState:"HOSTED",message:"Hosted IQ200 reasoning generated.",interactionId,requestId:requestId??"",response,retried:reservation.retry===true};
  }catch(error){
   const errorClass=mapHostedRunError(error);
-  if(requestId&&reservedByThisRun){try{await controls.persistFailure({scope,requestId,errorClass,latencyMs:controls.now()-started})}catch{}}
+  const validationReason=errorClass==="INVALID_PROVIDER_RESPONSE"?(error instanceof HostedProviderError?error.validationReason:error instanceof ProviderValidationError?error.validationReason:null):null;
+  if(requestId&&reservedByThisRun){try{await controls.persistFailure({scope,requestId,errorClass,validationReason,latencyMs:controls.now()-started})}catch{}}
   if(lease){try{await controls.finishLease(lease,"FAILED")}catch{}}
   throw error instanceof HostedRunError?error:new HostedRunError(errorClass);
  }

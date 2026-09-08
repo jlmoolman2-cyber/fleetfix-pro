@@ -7,7 +7,7 @@ import { classifyOpenAITransportError, CoreOpenAIReasoningTransport, IQ200_OPENA
 import { HOSTED_REASONING_TIMEOUT_MS, HostedProviderError, HostedTransportHttpError, safeHostedFailure, withHostedAbortTimeout } from "../src/lib/iq200/hostedTransportCore.ts";
 import { hostedIdempotencyKey } from "../src/lib/iq200/hostedControlCore.ts";
 import { runHostedExecutionCore, HostedRunError, mapHostedRunError, type HostedExecutionControls, type HostedExecutionScope } from "../src/lib/iq200/hostedReasoningCore.ts";
-import { evidenceReferenceSet, mergeRequiredSafetyWarnings, validateProviderUsage, validateReasoningQuestion, validateReasoningResponse, type ReasoningEvidence, type ReasoningResponse } from "../src/lib/iq200/reasoningCore.ts";
+import { evidenceReferenceSet, mergeRequiredSafetyWarnings, ProviderValidationError, validateProviderUsage, validateReasoningQuestion, validateReasoningResponse, type ReasoningEvidence, type ReasoningResponse } from "../src/lib/iq200/reasoningCore.ts";
 
 const src = (path: string) => readFileSync(path, "utf8");
 
@@ -355,6 +355,33 @@ test("D1: parseOpenAIResponseEnvelope rejects malformed output envelopes", () =>
   for (const env of badEnvelopes) {
     assert.throws(() => parseOpenAIResponseEnvelope(env as unknown as import("../src/lib/iq200/openaiTransportCore.ts").OpenAIResponseEnvelope), (err: unknown) => err instanceof HostedProviderError && err.category === "INVALID_PROVIDER_RESPONSE");
   }
+});
+
+test("D1a: envelope, output text, and JSON failures expose only fixed safe reason codes", () => {
+  const expectReason=(envelope:unknown,reason:string)=>assert.throws(()=>parseOpenAIResponseEnvelope(envelope as import("../src/lib/iq200/openaiTransportCore.ts").OpenAIResponseEnvelope),(error:unknown)=>error instanceof HostedProviderError&&error.category==="INVALID_PROVIDER_RESPONSE"&&error.validationReason===reason);
+  expectReason({status:"incomplete",incomplete_details:{reason:"max_output_tokens"}},"ENVELOPE_INCOMPLETE_MAX_OUTPUT_TOKENS");
+  expectReason({status:"incomplete",incomplete_details:{reason:"provider-specific text"}},"ENVELOPE_STATUS_INCOMPLETE");
+  expectReason({status:"completed",output:[{type:"message"}]},"OUTPUT_TEXT_MISSING");
+  expectReason({status:"completed",output:[{type:"message"}],output_text:"not JSON containing private output"},"JSON_PARSE");
+});
+
+test("D1c: deterministic schema constraints align with runtime string limits while intentional empty optionals remain allowed", () => {
+  const schema=IQ200_OPENAI_RESPONSE_SCHEMA.properties;
+  assert.deepEqual(schema.summary,{type:"string",minLength:1,maxLength:2000});
+  assert.deepEqual(schema.observations.items,{type:"string",minLength:1,maxLength:500});
+  assert.equal(schema.hypotheses.items.properties.title.maxLength,300);
+  assert.equal(schema.hypotheses.items.properties.explanation.maxLength,2000);
+  assert.equal(schema.checks.items.properties.description.maxLength,500);
+  assert.equal(schema.checks.items.properties.evidenceSource.maxLength,300);
+  assert.equal("minLength" in schema.checks.items.properties.expectedResult,false);
+  assert.equal("minLength" in schema.checks.items.properties.safetyNote,false);
+  assert.equal(validateReasoningResponse({...validResponse(),checks:[{...validResponse().checks[0],expectedResult:"",safetyNote:""}]}).checks[0].expectedResult,"");
+});
+
+test("D1d: runtime mismatch and usage failures carry precise safe classifications", () => {
+  const allowed=evidenceReferenceSet(evidence),mismatch={...validResponse(),evidenceUsed:[{category:"RELATED_HISTORY" as const,reference:"CURRENT_JOB",detail:"Mismatch"}]};
+  assert.throws(()=>validateReasoningResponse(mismatch,allowed),(error:unknown)=>error instanceof ProviderValidationError&&error.validationReason==="EVIDENCE_CATEGORY_MISMATCH");
+  assert.throws(()=>validateProviderUsage({inputUnits:-1,outputUnits:1}),(error:unknown)=>error instanceof ProviderValidationError&&error.validationReason==="USAGE_INVALID");
 });
 
 test("D1b: mixed reasoning/message output continues through advisory and evidence validation", () => {
