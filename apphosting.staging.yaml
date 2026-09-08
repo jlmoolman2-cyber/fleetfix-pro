@@ -60,7 +60,7 @@ env:
     value: "u3da4IKDxIhTO5see0if"
     availability: [RUNTIME]
   - variable: IQ200_PHASE7_SESSION_ID
-    value: "dT7aCNIQ0iMK6pgTGvqN"
+    value: "b34Bhac40cKYDQun0TEz"
     availability: [RUNTIME]
   - variable: IQ200_RATE_USER_PER_HOUR
     value: "1"
