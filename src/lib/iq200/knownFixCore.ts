@@ -9,6 +9,7 @@ export const KNOWN_FIX_ID = /^[A-Za-z0-9_-]{1,128}$/;
 export type KnownFixStatus = typeof KNOWN_FIX_STATUSES[number];
 export type KnownFixSearch = { q: string; faultCode: string; component: string; limit: number };
 export type JobApplicability = { make: string; model: string; vehicleType: string; engineFamily: string; faultCodes: string[]; text: string };
+export type KnownFixApprovalRequirement = "title" | "category" | "applicability" | "faultContext" | "diagnosticProcedure" | "findingsConditions" | "repairProcedure" | "sourceReference" | "safetyHandling" | "verificationCriteria";
 
 const FIELDS = ["title", "category", "vehicleMake", "vehicleModel", "vehicleType", "engineFamily", "otherApplicability", "systemComponent", "diagnosticProcedure", "expectedValues", "findingsConditions", "repairProcedure", "safetyWarnings", "technicalCautions", "notes", "sourceReference"] as const;
 const ARRAYS = ["symptoms", "faultCodes", "requiredTools", "partsComponents", "relatedHistoricalJobIds"] as const;
@@ -29,6 +30,26 @@ export function validateKnownFixInput(value: unknown) {
   for (const field of ARRAYS) output[field] = cleanArray(input[field], field === "relatedHistoricalJobIds" ? 20 : 40, field === "faultCodes" ? KNOWN_FIX_FAULT_MAX : field === "relatedHistoricalJobIds" ? 128 : 300);
   if (!(output.relatedHistoricalJobIds as string[]).every((id) => KNOWN_FIX_ID.test(id))) throw new Error("INVALID_INPUT");
   return output;
+}
+function hasText(value: unknown) { return typeof value === "string" && Boolean(value.trim()); }
+function hasItems(value: unknown) { return Array.isArray(value) && value.some(hasText); }
+export function knownFixApprovalReadiness(value: unknown) {
+  const data = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const missing: KnownFixApprovalRequirement[] = [];
+  if (!hasText(data.title)) missing.push("title");
+  if (!hasText(data.category)) missing.push("category");
+  if (![data.vehicleMake, data.vehicleModel, data.vehicleType, data.engineFamily, data.otherApplicability, data.systemComponent].some(hasText)) missing.push("applicability");
+  if (!hasItems(data.symptoms) && !hasItems(data.faultCodes) && !hasText(data.findingsConditions)) missing.push("faultContext");
+  if (!hasText(data.diagnosticProcedure)) missing.push("diagnosticProcedure");
+  if (!hasText(data.findingsConditions)) missing.push("findingsConditions");
+  if (!hasText(data.repairProcedure)) missing.push("repairProcedure");
+  if (!hasText(data.sourceReference)) missing.push("sourceReference");
+  if (!hasText(data.safetyWarnings) && !hasText(data.technicalCautions)) missing.push("safetyHandling");
+  if (!hasText(data.expectedValues) && !hasText(data.findingsConditions)) missing.push("verificationCriteria");
+  return { ready: missing.length === 0, missing };
+}
+export function knownFixTransitionAllowed(status: unknown, action: unknown) {
+  return action === "approve" ? status === "DRAFT" : action === "inactivate" ? status === "APPROVED" : false;
 }
 export function knownFixMatch(job: JobApplicability, fix: Record<string, unknown>, search: KnownFixSearch) {
   const make = normalizeLabel(fix.vehicleMake); const model = normalizeLabel(fix.vehicleModel); const type = normalizeLabel(fix.vehicleType); const engine = normalizeLabel(fix.engineFamily); const generic = !make && !model && !type && !engine;
