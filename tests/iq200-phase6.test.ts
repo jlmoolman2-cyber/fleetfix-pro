@@ -424,32 +424,35 @@ test("D3: validateReasoningResponse rejects fabricated evidence references and c
 
 test("D4: validateHostedAdvisoryResponse rejects automatic action claims and unsafe repair shortcuts", () => {
   const unsafeClaims = [
-    { summary: "I sent a WhatsApp message to the fleet manager." },
-    { summary: "I ordered the replacement injectors." },
-    { summary: "I updated the job status to completed." },
-    { summary: "I created a PO for the Scania parts." },
-    { summary: "Mark the job complete and send WhatsApp." }
+    "I changed the job status.",
+    "Send a WhatsApp.",
+    "Order parts.",
+    "Mark the job complete."
   ];
-  for (const claim of unsafeClaims) {
-    assert.throws(() => validateHostedAdvisoryResponse(claim), (err: unknown) => err instanceof Error && err.message === "SAFETY_VALIDATION_FAILED");
+  for (const summary of unsafeClaims) {
+    assert.throws(() => validateHostedAdvisoryResponse({summary}), (err: unknown) => err instanceof Error && err.message === "SAFETY_VALIDATION_FAILED" && "safetyReason" in err && err.safetyReason === "PROHIBITED_ACTION");
   }
 
   const directCommands = [
-    { summary: "Replace the high pressure fuel pump immediately." },
-    { summary: "Install new injector nozzle on cylinder 3." },
-    { summary: "Remove the fuel pressure relief valve." }
+    "Replace the sensor.",
+    "Remove the valve.",
+    "Install a new ECU.",
+    "Replace the unit now."
   ];
-  for (const cmd of directCommands) {
-    assert.throws(() => validateHostedAdvisoryResponse(cmd), (err: unknown) => err instanceof Error && err.message === "SAFETY_VALIDATION_FAILED");
+  for (const summary of directCommands) {
+    assert.throws(() => validateHostedAdvisoryResponse({summary}), (err: unknown) => err instanceof Error && err.message === "SAFETY_VALIDATION_FAILED" && "safetyReason" in err && err.safetyReason === "UNQUALIFIED_REPAIR_ACTION");
   }
 
-  const safeConditionals = [
-    { summary: "Replace the high pressure fuel pump only after verifying return line flow." },
-    { summary: "Install the new sensor if voltage drop testing confirms harness integrity." },
-    { summary: "Inspect the pressure valve and verify before replacement." }
+  const safeNegationsAndConditionals = [
+    "Do not replace the control unit based on history alone.",
+    "Do not remove the valve until testing confirms the fault.",
+    "Never install a replacement ECU without verification.",
+    "Replace the sensor only when testing confirms it is defective.",
+    "After confirming the fault, replace the failed sensor.",
+    "Inspect and verify before removing the component."
   ];
-  for (const safe of safeConditionals) {
-    assert.doesNotThrow(() => validateHostedAdvisoryResponse(safe));
+  for (const summary of safeNegationsAndConditionals) {
+    assert.doesNotThrow(() => validateHostedAdvisoryResponse({summary}));
   }
 });
 
