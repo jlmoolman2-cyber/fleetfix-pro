@@ -1,6 +1,6 @@
 export const IQ200_HOSTED_POLICY_VERSION = "iq200-hosted-policy-v1";
 export const IQ200_HOSTED_COMMISSIONING_ARMED = false;
-export const IQ200_PHASE7_COMMISSIONING_ARMED = true;
+export const IQ200_PHASE7_COMMISSIONING_ARMED = false;
 export const IQ200_PHASE7_MODEL = "gpt-5.6-terra";
 
 export type HostedReasoningConfig = {
