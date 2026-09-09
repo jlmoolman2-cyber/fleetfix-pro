@@ -6,6 +6,8 @@ import { ServerAccessError, type ServerUserContext } from "@/lib/serverAuth";
 import { requireIQ200Access } from "./access";
 
 const JOB_ID = /^[A-Za-z0-9_-]{1,128}$/;
+const IQ200_JOB_CONTEXT_NOTE_LIMIT = 20;
+const IQ200_JOB_CONTEXT_DIAGNOSTIC_LIMIT = 20;
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -103,6 +105,7 @@ export async function getIQ200JobContext(context: ServerUserContext, jobId: stri
     ...diagnosticsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
     ...faultsSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })),
   ];
+  const diagnosticEntries = diagnostics.map(diagnosticEntry);
 
   return {
     companyId: context.companyId,
@@ -118,8 +121,10 @@ export async function getIQ200JobContext(context: ServerUserContext, jobId: stri
         make: text(vehicleData.vehicleMake || vehicleData.make || job.vehicleMake),
         model: text(vehicleData.vehicleModel || vehicleData.model || job.vehicleModel),
         type: text(vehicleData.vehicleType || vehicleData.type || job.vehicleType),
+        engineFamily: text(vehicleData.engineFamily || vehicleData.engineModel || job.engineFamily || job.engineModel),
       },
       description: text(job.description || job.jobDescription || job.reportedFault || job.problemDescription),
+      faultCodes: [...new Set(diagnosticEntries.map((entry) => entry.code).filter(Boolean))].slice(0, 20),
       location: text(job.locationDetails?.name || job.locationName || (typeof job.location === "string" ? job.location : "") || job.breakdownLocation),
       bookingDateTime: dateValue(job.bookingDateTime || job.bookingDate || job.dateBooked || job.createdAt),
       assignedTechnicians: assigned.length ? assigned : text(job.assignedTo || job.assignedTechnician) ? [{ id: text(job.assignedUserId || job.assignedTechnicianId), name: text(job.assignedTo || job.assignedTechnician) }] : [],
@@ -128,8 +133,8 @@ export async function getIQ200JobContext(context: ServerUserContext, jobId: stri
       notes: notesSnapshot.docs.map((doc) => {
         const note = doc.data();
         return { id: doc.id, text: text(note.comment || note.text || note.note), author: text(note.createdByName || note.userName || note.authorName), createdAt: dateValue(note.createdAt) };
-      }),
-      diagnostics: diagnostics.map(diagnosticEntry),
+      }).slice(0, IQ200_JOB_CONTEXT_NOTE_LIMIT),
+      diagnostics: diagnosticEntries.slice(0, IQ200_JOB_CONTEXT_DIAGNOSTIC_LIMIT),
     },
     currentUser: {
       id: context.uid,
