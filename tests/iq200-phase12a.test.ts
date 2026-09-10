@@ -78,8 +78,9 @@ test("P12A service fails closed before approval writes and returns fixed safe er
 
 test("P12A edit of Approved remains Draft, inactive, revision-incrementing, and unapproved", () => {
   const service = source("src/lib/iq200/knownFixService.ts");
-  assert.match(service, /approved=snap\.data\(\)\?\.status==="APPROVED"/);
-  assert.match(service, /status:"DRAFT",active:false,revision:Number\(snap\.data\(\)\?\.revision\|\|1\)\+\(approved\?1:0\)/);
+  assert.match(service, /knownFixEditBehavior\(currentStatus\)/);
+  assert.match(service, /status:"DRAFT",active:false/);
+  assert.match(service, /shouldIncrementRevision\?currentRevision\+1:currentRevision/);
   assert.match(service, /approvedBy:null,approvedAt:null/);
 });
 

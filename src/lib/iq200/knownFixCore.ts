@@ -51,6 +51,15 @@ export function knownFixApprovalReadiness(value: unknown) {
 export function knownFixTransitionAllowed(status: unknown, action: unknown) {
   return action === "approve" ? status === "DRAFT" : action === "inactivate" ? status === "APPROVED" : false;
 }
+export function knownFixEditBehavior(status: unknown): "allowed" | "revision" | "denied" {
+  if (status === "DRAFT") return "allowed";
+  if (status === "APPROVED") return "revision";
+  if (status === "INACTIVE") return "denied";
+  return "denied";
+}
+export function normalizeKnownFixRevision(value: unknown): number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1 && value < Number.MAX_SAFE_INTEGER ? value : 1;
+}
 export function knownFixMatch(job: JobApplicability, fix: Record<string, unknown>, search: KnownFixSearch) {
   const make = normalizeLabel(fix.vehicleMake); const model = normalizeLabel(fix.vehicleModel); const type = normalizeLabel(fix.vehicleType); const engine = normalizeLabel(fix.engineFamily); const generic = !make && !model && !type && !engine;
   if (make && make !== job.make || model && model !== job.model || type && type !== job.vehicleType || engine && engine !== job.engineFamily) return null;

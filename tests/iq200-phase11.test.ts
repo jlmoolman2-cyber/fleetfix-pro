@@ -140,7 +140,8 @@ test("P11.11 provenance retained",()=>{
 test("P11.12 revision handling remains valid",()=>{
   const value=service();
   assert.match(value,/revision:1/);
-  assert.match(value,/revision:Number\(snap\.data\(\)\?\.revision\|\|1\)\+\(approved\?1:0\)/);
+  assert.match(value,/knownFixEditBehavior/);
+  assert.match(value,/shouldIncrementRevision\?currentRevision\+1:currentRevision/);
   assert.match(value,/status:"DRAFT",active:false,revision:/);
 });
 

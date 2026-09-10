@@ -1,7 +1,7 @@
 import "server-only";
 import { FieldValue, Timestamp, type DocumentData } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin"; import { effectivePermissions } from "@/lib/permissions"; import { ServerAccessError, type ServerUserContext } from "@/lib/serverAuth";
-import { authorisedJob } from "./service"; import { KNOWN_FIX_ID, KNOWN_FIX_MAX_CANDIDATES, knownFixApprovalReadiness, knownFixMatch, knownFixTransitionAllowed, parseKnownFixSearch, validateKnownFixInput, type JobApplicability } from "./knownFixCore"; import { normalizeFaultCode, normalizeLabel } from "./historyCore";
+import { authorisedJob } from "./service"; import { KNOWN_FIX_ID, KNOWN_FIX_MAX_CANDIDATES, knownFixApprovalReadiness, knownFixEditBehavior, knownFixMatch, knownFixTransitionAllowed, normalizeKnownFixRevision, parseKnownFixSearch, validateKnownFixInput, type JobApplicability } from "./knownFixCore"; import { normalizeFaultCode, normalizeLabel } from "./historyCore";
 
 const collectionFor = (companyId: string) => adminDb.collection(`companies/${companyId}/iq200_known_fixes`);
 function requirePermission(context: ServerUserContext, permission: string) { if (effectivePermissions(context.companyUser)[permission] !== true) throw new ServerAccessError("FORBIDDEN", `${permission} permission is required.`, 403); }
@@ -11,5 +11,33 @@ function technicianDto(id: string, data: DocumentData, match: { score: number; r
 export async function searchKnownFixesForJob(context: ServerUserContext, jobId: string, requestUrl: string) { let search; try { search = parseKnownFixSearch(new URL(requestUrl)); } catch { throw new ServerAccessError("INVALID_INPUT", "Known Fix search filters are invalid.", 400); } const { data } = await authorisedJob(context, jobId); const vehicle = data.vehicle || data.vehicleDetails || {}; const job: JobApplicability = { make: normalizeLabel(data.vehicleMake || vehicle.make), model: normalizeLabel(data.vehicleModel || vehicle.model), vehicleType: normalizeLabel(data.vehicleType || vehicle.type), engineFamily: normalizeLabel(data.engineFamily || data.engineModel), faultCodes: [...(Array.isArray(data.faultCodes) ? data.faultCodes : []), data.faultCode].map(normalizeFaultCode).filter(Boolean), text: String(data.complaint || data.description || data.reportedFault || "") }; const snapshot = await collectionFor(context.companyId).where("status", "==", "APPROVED").limit(KNOWN_FIX_MAX_CANDIDATES).get(); const results = snapshot.docs.filter((doc) => doc.data().active === true).map((doc) => ({ doc, match: knownFixMatch(job, doc.data(), search) })).filter((item) => item.match).sort((a,b) => b.match!.score-a.match!.score).slice(0,search.limit).map((item) => technicianDto(item.doc.id,item.doc.data(),item.match!)); return { results }; }
 export async function listKnownFixes(context: ServerUserContext) { const permissions=effectivePermissions(context.companyUser); const capabilities={view:permissions["View IQ200 Known Fixes"]===true,manage:permissions["Manage IQ200 Known Fixes"]===true,approve:permissions["Approve IQ200 Known Fixes"]===true}; if(!capabilities.view&&!capabilities.manage&&!capabilities.approve) throw new ServerAccessError("FORBIDDEN","Known Fix administrative permission is required.",403); const snapshot=await collectionFor(context.companyId).limit(100).get(); return { fixes:snapshot.docs.map((doc)=>adminDto(doc.id,doc.data())), capabilities:{...capabilities,view:true} }; }
 export async function createKnownFix(context: ServerUserContext, input: unknown) { requirePermission(context,"Manage IQ200 Known Fixes"); let data; try { data=validateKnownFixInput(input); } catch { throw new ServerAccessError("INVALID_INPUT","Known Fix content is invalid or exceeds limits.",400); } const ref=collectionFor(context.companyId).doc(); await ref.create({...data,companyId:context.companyId,status:"DRAFT",active:false,revision:1,createdBy:context.uid,createdAt:FieldValue.serverTimestamp(),updatedBy:context.uid,updatedAt:FieldValue.serverTimestamp(),approvedBy:null,approvedAt:null}); return { fix:adminDto(ref.id,(await ref.get()).data()||{}) }; }
-export async function updateKnownFix(context: ServerUserContext,id:string,input:unknown) { requirePermission(context,"Manage IQ200 Known Fixes"); if(!KNOWN_FIX_ID.test(id)) throw new ServerAccessError("NOT_FOUND","Known Fix not found.",404); const ref=collectionFor(context.companyId).doc(id); const snap=await ref.get(); if(!snap.exists) throw new ServerAccessError("NOT_FOUND","Known Fix not found.",404); let data; try { data=validateKnownFixInput(input); } catch { throw new ServerAccessError("INVALID_INPUT","Known Fix content is invalid or exceeds limits.",400); } const approved=snap.data()?.status==="APPROVED"; await ref.update({...data,status:"DRAFT",active:false,revision:Number(snap.data()?.revision||1)+(approved?1:0),updatedBy:context.uid,updatedAt:FieldValue.serverTimestamp(),approvedBy:null,approvedAt:null}); return { fix:adminDto(id,(await ref.get()).data()||{}) }; }
+export async function updateKnownFix(context: ServerUserContext,id:string,input:unknown) {
+  requirePermission(context,"Manage IQ200 Known Fixes");
+  if(!KNOWN_FIX_ID.test(id)) throw new ServerAccessError("NOT_FOUND","Known Fix not found.",404);
+  let data;
+  try { data=validateKnownFixInput(input); }
+  catch { throw new ServerAccessError("INVALID_INPUT","Known Fix content is invalid or exceeds limits.",400); }
+  const ref=collectionFor(context.companyId).doc(id);
+  await adminDb.runTransaction(async(transaction)=>{
+    const snap=await transaction.get(ref);
+    if(!snap.exists) throw new ServerAccessError("NOT_FOUND","Known Fix not found.",404);
+    const currentData=snap.data()||{};
+    const currentStatus=currentData.status;
+    const editBehavior=knownFixEditBehavior(currentStatus);
+    if(editBehavior==="denied") throw new ServerAccessError("INACTIVE_KNOWN_FIX_LOCKED","This Known Fix is inactive and cannot be edited.",409);
+    const currentRevision=normalizeKnownFixRevision(currentData.revision);
+    const shouldIncrementRevision=editBehavior==="revision";
+    transaction.update(ref,{
+      ...data,
+      status:"DRAFT",
+      active:false,
+      revision:shouldIncrementRevision?currentRevision+1:currentRevision,
+      updatedBy:context.uid,
+      updatedAt:FieldValue.serverTimestamp(),
+      approvedBy:null,
+      approvedAt:null
+    });
+  });
+  return { fix:adminDto(id,(await ref.get()).data()||{}) };
+}
 export async function changeKnownFixStatus(context:ServerUserContext,id:string,action:string){ if(!KNOWN_FIX_ID.test(id)) throw new ServerAccessError("NOT_FOUND","Known Fix not found.",404); if(action==="approve") requirePermission(context,"Approve IQ200 Known Fixes"); else if(action==="inactivate") requirePermission(context,"Manage IQ200 Known Fixes"); else throw new ServerAccessError("INVALID_INPUT","Known Fix action is invalid.",400); const ref=collectionFor(context.companyId).doc(id); await adminDb.runTransaction(async(transaction)=>{const snap=await transaction.get(ref);if(!snap.exists)throw new ServerAccessError("NOT_FOUND","Known Fix not found.",404);const data=snap.data()||{};if(!knownFixTransitionAllowed(data.status,action))throw new ServerAccessError("INVALID_KNOWN_FIX_TRANSITION","The Known Fix cannot perform that lifecycle transition.",409);if(action==="approve"){const readiness=knownFixApprovalReadiness(data);if(!readiness.ready)throw new ServerAccessError("KNOWN_FIX_NOT_READY_FOR_APPROVAL",`Known Fix approval requires: ${readiness.missing.join(", ")}.`,422);transaction.update(ref,{status:"APPROVED",active:true,approvedBy:context.uid,approvedAt:FieldValue.serverTimestamp(),updatedBy:context.uid,updatedAt:FieldValue.serverTimestamp()});}else transaction.update(ref,{status:"INACTIVE",active:false,updatedBy:context.uid,updatedAt:FieldValue.serverTimestamp()});}); return { fix:adminDto(id,(await ref.get()).data()||{}) }; }
