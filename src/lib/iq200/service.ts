@@ -38,7 +38,6 @@ function statusEntry(entry: unknown) {
 function diagnosticEntry(entry: unknown) {
   const data = entry && typeof entry === "object" ? entry as DocumentData : {};
   return {
-    id: text(data.id),
     code: text(data.code || data.faultCode || data.diagnosticCode),
     description: text(data.description || data.faultDescription || data.message),
     status: text(data.status),
@@ -55,7 +54,6 @@ function sessionEntry(id: string, value: DocumentData) {
     state: text(value.state),
     responseStatus: text(value.responseStatus),
     createdAt: dateValue(value.createdAt),
-    updatedAt: dateValue(value.updatedAt),
   };
 }
 
@@ -108,14 +106,12 @@ export async function getIQ200JobContext(context: ServerUserContext, jobId: stri
   const diagnosticEntries = diagnostics.map(diagnosticEntry);
 
   return {
-    companyId: context.companyId,
     job: {
       id: snapshot.id,
       number: text(job.jobNumber) || snapshot.id,
       status: text(job.status || job.statusName),
       customer: customerId ? { id: customerId, name: text(customer.customerName || customer.name || job.customerName) } : null,
       vehicle: {
-        id: text(vehicleData.id || job.vehicleId),
         registrationNumber: text(vehicleData.regNo || vehicleData.vehicleReg || vehicleData.registrationNumber || vehicleData.registration || job.vehicleRegistration),
         fleetNumber: text(vehicleData.fleetNo || vehicleData.fleetNumber || job.fleetNumber),
         make: text(vehicleData.vehicleMake || vehicleData.make || job.vehicleMake),
@@ -126,18 +122,13 @@ export async function getIQ200JobContext(context: ServerUserContext, jobId: stri
       description: text(job.description || job.jobDescription || job.reportedFault || job.problemDescription),
       faultCodes: [...new Set(diagnosticEntries.map((entry) => entry.code).filter(Boolean))].slice(0, 20),
       location: text(job.locationDetails?.name || job.locationName || (typeof job.location === "string" ? job.location : "") || job.breakdownLocation),
-      bookingDateTime: dateValue(job.bookingDateTime || job.bookingDate || job.dateBooked || job.createdAt),
-      assignedTechnicians: assigned.length ? assigned : text(job.assignedTo || job.assignedTechnician) ? [{ id: text(job.assignedUserId || job.assignedTechnicianId), name: text(job.assignedTo || job.assignedTechnician) }] : [],
-      previousJobNumber: text(job.previousJobNumber || job.statusFieldValues?.previousJobNumber || job.dynamicFields?.previousJobNumber),
-      statusHistory: (Array.isArray(job.statusHistory) ? job.statusHistory : []).map(statusEntry),
       notes: notesSnapshot.docs.map((doc) => {
         const note = doc.data();
-        return { id: doc.id, text: text(note.comment || note.text || note.note), author: text(note.createdByName || note.userName || note.authorName), createdAt: dateValue(note.createdAt) };
+        return { text: text(note.comment || note.text || note.note), author: text(note.createdByName || note.userName || note.authorName), createdAt: dateValue(note.createdAt) };
       }).slice(0, IQ200_JOB_CONTEXT_NOTE_LIMIT),
       diagnostics: diagnosticEntries.slice(0, IQ200_JOB_CONTEXT_DIAGNOSTIC_LIMIT),
     },
     currentUser: {
-      id: context.uid,
       name: text(context.companyUser.name || context.companyUser.displayName || `${text(context.companyUser.firstName)} ${text(context.companyUser.lastName)}`) || text(context.token.name || context.token.email),
     },
   };
