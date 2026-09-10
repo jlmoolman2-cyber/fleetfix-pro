@@ -60,13 +60,32 @@ export function knownFixEditBehavior(status: unknown): "allowed" | "revision" | 
 export function normalizeKnownFixRevision(value: unknown): number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 1 && value < Number.MAX_SAFE_INTEGER ? value : 1;
 }
+const KNOWN_FIX_STOP_WORDS = new Set(["and", "the", "for", "with", "from", "this", "that", "vehicle", "job", "was", "are", "but", "not", "system", "control", "unit", "engine", "pressure", "sensor", "component", "assembly", "module", "truck", "repair", "check", "fault", "problem", "service", "inspection", "diagnostic", "procedure", "test", "value", "specification", "part", "parts", "replace", "issue", "error", "code"]);
+export function meaningfulKnownFixTokens(value: unknown): string[] {
+  return tokenize(value).filter((token) => !KNOWN_FIX_STOP_WORDS.has(token));
+}
 export function knownFixMatch(job: JobApplicability, fix: Record<string, unknown>, search: KnownFixSearch) {
   const make = normalizeLabel(fix.vehicleMake); const model = normalizeLabel(fix.vehicleModel); const type = normalizeLabel(fix.vehicleType); const engine = normalizeLabel(fix.engineFamily); const generic = !make && !model && !type && !engine;
   if (make && make !== job.make || model && model !== job.model || type && type !== job.vehicleType || engine && engine !== job.engineFamily) return null;
   const codes = Array.isArray(fix.faultCodes) ? fix.faultCodes.map(normalizeFaultCode) : []; const requested = search.faultCode ? [search.faultCode] : job.faultCodes; const matchedCodes = requested.filter((code) => codes.includes(code));
   const component = normalizeLabel(fix.systemComponent); if (search.component && !component.includes(normalizeLabel(search.component))) return null;
-  const fixText = [fix.title, fix.category, fix.systemComponent, ...(Array.isArray(fix.symptoms) ? fix.symptoms : []), fix.diagnosticProcedure, fix.repairProcedure].join(" "); const shared = tokenize(`${job.text} ${search.q}`).filter((token) => tokenize(fixText).includes(token)); if (search.q && !tokenize(search.q).some((token) => tokenize(fixText).includes(token))) return null;
+  const fixText = [fix.title, fix.category, fix.systemComponent, ...(Array.isArray(fix.symptoms) ? fix.symptoms : []), fix.diagnosticProcedure, fix.repairProcedure].join(" ");
+  if (search.q && !tokenize(search.q).some((token) => tokenize(fixText).includes(token))) return null;
+  const meaningfulJobText = meaningfulKnownFixTokens(job.text); const meaningfulSearchQuery = meaningfulKnownFixTokens(search.q); const meaningfulJobEvidence = [...new Set([...meaningfulJobText, ...meaningfulSearchQuery])]; const meaningfulFixText = meaningfulKnownFixTokens(fixText);
+  const meaningfulComponent = meaningfulKnownFixTokens(component); const meaningfulComponentOverlap = meaningfulComponent.filter((t) => meaningfulJobEvidence.includes(t)); const hasComponentRelationship = meaningfulComponentOverlap.length >= 1;
+  const meaningfulSearchComponent = meaningfulKnownFixTokens(search.component); const meaningfulSearchComponentOverlap = meaningfulSearchComponent.filter((t) => meaningfulComponent.includes(t)); const hasSearchComponentEvidence = meaningfulSearchComponentOverlap.length >= 1;
+  const meaningfulAutoTextOverlap = meaningfulJobText.filter((t) => meaningfulFixText.includes(t)); const hasAutomaticTextEvidence = meaningfulAutoTextOverlap.length >= 2;
+  const meaningfulQueryOverlap = meaningfulSearchQuery.filter((t) => meaningfulFixText.includes(t)); const hasExplicitSearchEvidence = meaningfulQueryOverlap.length >= 1;
+  const otherApp = normalizeLabel(fix.otherApplicability); const meaningfulOtherApp = meaningfulKnownFixTokens(otherApp); const meaningfulOtherAppOverlap = meaningfulOtherApp.filter((t) => meaningfulJobEvidence.includes(t)); const hasOtherAppRelationship = meaningfulOtherAppOverlap.length >= 2;
+  const hasEvidence = matchedCodes.length > 0 || hasComponentRelationship || hasSearchComponentEvidence || hasAutomaticTextEvidence || hasExplicitSearchEvidence || hasOtherAppRelationship;
+  if (!hasEvidence) return null;
   let score = matchedCodes.length * 120; const reasons: string[] = matchedCodes.map((code) => `Exact fault code: ${code}`);
-  if (make && model) { score += 90; reasons.push("Exact make/model applicability"); } else if (make) { score += 45; reasons.push("Same vehicle make"); } if (type) { score += 25; reasons.push("Same vehicle type"); } if (engine && engine === job.engineFamily) { score += 70; reasons.push("Same engine/family"); } if (component) { score += 35; reasons.push(`Component/system: ${component}`); } if (shared.length) { score += Math.min(30, shared.length * 5); reasons.push(`Similar symptoms: ${shared.slice(0, 4).join(", ")}`); } if (generic) { score += 5; reasons.push("Generic approved guidance"); }
+  if (make && model) { score += 90; reasons.push("Exact make/model applicability"); } else if (make) { score += 45; reasons.push("Same vehicle make"); }
+  if (type) { score += 25; reasons.push("Same vehicle type"); }
+  if (engine && engine === job.engineFamily) { score += 70; reasons.push("Same engine/family"); }
+  if (hasComponentRelationship) { score += 35; reasons.push(`Component/system: ${component}`); }
+  if (meaningfulAutoTextOverlap.length) { score += Math.min(30, meaningfulAutoTextOverlap.length * 5); reasons.push(`Similar symptoms: ${meaningfulAutoTextOverlap.slice(0, 4).join(", ")}`); }
+  if (hasOtherAppRelationship) { score += 20; reasons.push(`Other applicability: ${otherApp}`); }
+  if (generic) { score += 5; reasons.push("Generic approved guidance"); }
   return score > 0 ? { score, reasons: [...new Set(reasons)].slice(0, 5) } : null;
 }
