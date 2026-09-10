@@ -106,7 +106,8 @@ test("P12A UI exposes only valid lifecycle actions and safely surfaces API messa
   const page = source("src/app/admin/iq200-known-fixes/page.tsx");
   assert.match(page, /caps\.approve&&fix\.status==="DRAFT"/);
   assert.match(page, /caps\.manage&&fix\.status==="APPROVED"/);
-  assert.match(page, /setError\(e instanceof Error\?e\.message:"Action failed"\)/);
+  assert.match(page, /setLifecycleError\(id,e instanceof Error\?e\.message:"Action failed"\)/);
+  assert.doesNotMatch(page, /error\.stack|firebaseError|firestoreError|rawError|JSON\.stringify\(e\)/i);
   assert.doesNotMatch(page, /dangerouslySetInnerHTML/);
 });
 
