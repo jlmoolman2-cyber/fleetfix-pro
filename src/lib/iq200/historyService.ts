@@ -1,10 +1,10 @@
 import "server-only";
 
-import { Timestamp, type DocumentData, type QueryDocumentSnapshot } from "firebase-admin/firestore";
+import { Timestamp, type DocumentData, type DocumentSnapshot, type QueryDocumentSnapshot } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { ServerAccessError, type ServerUserContext } from "@/lib/serverAuth";
 import { authorisedJob } from "./service";
-import { deduplicateHistoricalCandidates, HISTORY_MAX_RESULTS, normalizeFaultCode, normalizeIdentifier, normalizeLabel, parseHistoryFilters, scoreHistoricalJob, type NormalizedHistoryJob } from "./historyCore";
+import { deduplicateHistoricalCandidates, normalizeFaultCode, normalizeIdentifier, normalizeLabel, parseHistoryFilters, rankHistoricalJobs, selectHistoricalEnrichmentShortlist, type NormalizedHistoryJob } from "./historyCore";
 
 const QUERY_LIMIT = 50;
 const RECENT_LIMIT = 120;
@@ -67,12 +67,12 @@ async function candidateSnapshots(companyId: string, currentId: string, current:
   return deduplicateHistoricalCandidates<QueryDocumentSnapshot>(currentId, snapshots.flatMap((snapshot) => snapshot.docs));
 }
 
-async function enrich(snapshot: QueryDocumentSnapshot) {
+async function enrich(snapshot: DocumentSnapshot) {
   const [notes, materials, diagnostics, faults] = await Promise.all([
     snapshot.ref.collection("notes").limit(10).get(), snapshot.ref.collection("materials").limit(20).get(),
     snapshot.ref.collection("diagnostics").limit(10).get(), snapshot.ref.collection("faults").limit(10).get(),
   ]);
-  const data = snapshot.data();
+  const data = snapshot.data() || {};
   return normalizeJob(snapshot.id, {
     ...data,
     findings: [...strings(data.findings), ...notes.docs.map((doc) => text(doc.data().technicianFinding || doc.data().finding)).filter(Boolean)],
@@ -85,14 +85,14 @@ export async function searchIQ200History(context: ServerUserContext, jobId: stri
   let filters;
   try { filters = parseHistoryFilters(new URL(requestUrl)); } catch { throw new ServerAccessError("INVALID_INPUT", "Historical search filters are invalid.", 400); }
   const { snapshot: currentSnapshot, data: currentData } = await authorisedJob(context, jobId);
-  const current = normalizeJob(currentSnapshot.id, currentData);
   const candidates = await candidateSnapshots(context.companyId, currentSnapshot.id, currentData);
-  const initiallyRanked = candidates.map((candidate) => ({ candidate, normalized: normalizeJob(candidate.id, candidate.data()) }))
-    .map((item) => ({ ...item, match: scoreHistoricalJob(current, item.normalized, filters) })).filter((item) => item.match)
-    .sort((a, b) => b.match!.score - a.match!.score || a.normalized.jobNumber.localeCompare(b.normalized.jobNumber));
-  const enriched = await Promise.all(initiallyRanked.slice(0, Math.min(filters.limit, HISTORY_MAX_RESULTS)).map(async (item) => ({ candidate: await enrich(item.candidate) })));
-  const results = enriched.map(({ candidate }) => ({ candidate, match: scoreHistoricalJob(current, candidate, filters) })).filter((item) => item.match)
-    .sort((a, b) => b.match!.score - a.match!.score || a.candidate.jobNumber.localeCompare(b.candidate.jobNumber)).slice(0, filters.limit)
+  const topLevelCandidates = candidates.map((candidate) => normalizeJob(candidate.id, candidate.data()));
+  const shortlistIds = new Set(selectHistoricalEnrichmentShortlist(normalizeJob(currentSnapshot.id, currentData), topLevelCandidates, filters).map((candidate) => candidate.id));
+  const [current, ...enrichedCandidates] = await Promise.all([
+    enrich(currentSnapshot),
+    ...candidates.filter((candidate) => shortlistIds.has(candidate.id)).map((candidate) => enrich(candidate)),
+  ]);
+  const results = rankHistoricalJobs(current, enrichedCandidates, filters).slice(0, filters.limit)
     .map(({ candidate, match }) => ({
       id: candidate.id, jobNumber: candidate.jobNumber, date: candidate.date, registration: candidate.registration, fleetNumber: candidate.fleetNumber,
       make: candidate.make, model: candidate.model, description: candidate.description, faultCodes: candidate.faultCodes,
