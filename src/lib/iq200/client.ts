@@ -75,6 +75,32 @@ function getHttpErrorMessage(status: number): string {
   }
 }
 
+// ── Phase 13D-2: Assessment Retrieval ─────────────────────────
+
+export type IQ200AssessmentSessionDTO = {
+  id: string;
+  initialQuestion?: string;
+  state?: string;
+  responseStatus?: string;
+  createdAt?: string;
+};
+
+export type IQ200AssessmentResult = {
+  session: IQ200AssessmentSessionDTO;
+  assessment: unknown;
+};
+
+export async function fetchSessionAssessment(
+  jobId: string,
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<IQ200AssessmentResult> {
+  return iq200Api<IQ200AssessmentResult>(
+    `/api/iq200/jobs/${encodeURIComponent(jobId)}/sessions/${encodeURIComponent(sessionId)}/assessment`,
+    signal ? { signal } : {},
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════
  * Phase 13D-1 — Pure helpers for UI state hardening.
  * Framework-agnostic, testable without React or Firebase.

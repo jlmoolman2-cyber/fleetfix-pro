@@ -4,6 +4,7 @@ import { FieldValue, Timestamp, type DocumentData } from "firebase-admin/firesto
 import { adminDb } from "@/lib/firebaseAdmin";
 import { ServerAccessError, type ServerUserContext } from "@/lib/serverAuth";
 import { requireIQ200Access } from "./access";
+import { validateReasoningResponse } from "./reasoningCore.ts";
 
 const JOB_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const IQ200_JOB_CONTEXT_NOTE_LIMIT = 20;
@@ -159,4 +160,98 @@ export async function createIQ200Session(context: ServerUserContext, jobId: stri
     updatedAt: FieldValue.serverTimestamp(),
   });
   return { session: { id: ref.id, initialQuestion: question, state: "CONTEXT_READY", responseStatus: "AI_NOT_ENABLED" } };
+}
+
+/* ═══════════════════════════════════════════════════════════════
+ * Phase 13D-2 — Server-side assessment retrieval.
+ * Read-only. No reasoning. No provider. No writes.
+ * ═══════════════════════════════════════════════════════════════ */
+
+const SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+function validateSessionId(sessionId: string) {
+  if (!SESSION_ID.test(sessionId)) throw new ServerAccessError("NOT_FOUND", "IQ200 session not found.", 404);
+}
+
+// Bounded candidate window for structured assessment retrieval. Bounded
+// multi-candidate selection keeps retrieval deterministic while allowing a
+// malformed newer successful interaction to fall through to an older valid one.
+const IQ200_ASSESSMENT_CANDIDATE_LIMIT = 20;
+
+export async function getIQ200SessionAssessment(context: ServerUserContext, jobId: string, sessionId: string) {
+  requireIQ200Access(context);
+  validateJobId(jobId);
+  validateSessionId(sessionId);
+
+  const jobRef = adminDb.doc(`companies/${context.companyId}/jobs/${jobId}`);
+  const jobSnapshot = await jobRef.get();
+  if (!jobSnapshot.exists || (jobSnapshot.data()?.companyId && jobSnapshot.data()?.companyId !== context.companyId)) {
+    throw new ServerAccessError("NOT_FOUND", "The requested job was not found.", 404);
+  }
+
+  const sessionRef = jobSnapshot.ref.collection("iq200_sessions").doc(sessionId);
+  const session = await sessionRef.get();
+  const data = session.data();
+  if (!session.exists || data?.companyId !== context.companyId || data?.jobId !== jobSnapshot.id) {
+    throw new ServerAccessError("NOT_FOUND", "IQ200 session not found.", 404);
+  }
+
+  // Retrieve the most recent successful structured assessments.
+  // Only interactions with success === true are considered; candidates are
+  // iterated newest-first and the FIRST one that passes the canonical
+  // ReasoningResponse validation is returned. A malformed newer successful
+  // interaction must not block an older valid structured assessment.
+  const interactions = await sessionRef.collection("interactions")
+    .where("success", "==", true)
+    .orderBy("createdAt", "desc")
+    .limit(IQ200_ASSESSMENT_CANDIDATE_LIMIT)
+    .get();
+
+  let assessment: Record<string, unknown> | null = null;
+  for (const interaction of interactions.docs) {
+    const rawResponse = interaction.data()?.response as unknown;
+    try {
+      const validated = validateReasoningResponse(rawResponse);
+      // Build the explicit allowlisted DTO from the fully validated response.
+      // No raw stored fields and no nested extras may cross the boundary.
+      assessment = {
+        summary: validated.summary,
+        observations: validated.observations.map((item: string) => item),
+        hypotheses: validated.hypotheses.map((hypothesis) => ({
+          title: hypothesis.title,
+          explanation: hypothesis.explanation,
+          confidence: hypothesis.confidence,
+          evidenceReferences: hypothesis.evidenceReferences.map((item: string) => item),
+          contradictions: hypothesis.contradictions.map((item: string) => item),
+          recommendedChecks: hypothesis.recommendedChecks.map((item: string) => item),
+        })),
+        checks: validated.checks.map((check) => ({
+          description: check.description,
+          purpose: check.purpose,
+          expectedResult: check.expectedResult,
+          safetyNote: check.safetyNote,
+          evidenceSource: check.evidenceSource,
+        })),
+        safetyWarnings: validated.safetyWarnings.map((item: string) => item),
+        missingInformation: validated.missingInformation.map((item: string) => item),
+        evidenceUsed: validated.evidenceUsed.map((evidence) => ({
+          category: evidence.category,
+          reference: evidence.reference,
+          detail: evidence.detail,
+        })),
+        confidence: validated.confidence,
+        limitations: validated.limitations.map((item: string) => item),
+      };
+      break;
+    } catch {
+      // Malformed successful interaction — fall through to the next older
+      // candidate instead of failing the whole retrieval.
+      continue;
+    }
+  }
+
+  return {
+    session: sessionEntry(session.id, session.data() || {}),
+    assessment,
+  };
 }

@@ -329,7 +329,7 @@ test("P13D.39 submission duplicates remain blocked and route cleanup aborts and 
   assert.match(submit, /requestJobId = id[\s\S]*generation = jobGenerationRef\.current[\s\S]*isCurrentJob/);
   assert.match(submit, /if \(!stale && isCurrentJob\(\)\)/);
   assert.match(submit, /releaseSubmissionGuard\(guard\)/);
-  const cleanup = section(value, "return () => {", "};\n  }, [id]");
+  const cleanup = section(value, "return () => {", "  }, [id])");
   assert.match(cleanup, /submissionAbortRef\.current\?\.abort\(\)/);
   assert.match(cleanup, /nextRequestToken\(submissionCorrelationRef\.current\)/);
 });
@@ -363,7 +363,7 @@ test("P13D.42 old-job session refresh and async completions are generation guard
   const submit = section(value, "async function startSession", "async function searchHistory");
   assert.match(submit, /activeJobIdRef\.current === requestJobId && jobGenerationRef\.current === generation/);
   assert.match(submit, /isCurrentJob\(\) && isCurrentRequest\(submissionCorrelationRef\.current, token\)\) setSessions\(refreshed\)/);
-  const cleanup = section(value, "return () => {", "};\n  }, [id]");
+  const cleanup = section(value, "return () => {", "  }, [id])");
   assert.match(cleanup, /historyAbortRef\.current\?\.abort\(\)/);
   assert.match(cleanup, /nextRequestToken\(historyCorrelationRef\.current\)/);
   assert.match(cleanup, /jobGenerationRef\.current \+= 1/);
