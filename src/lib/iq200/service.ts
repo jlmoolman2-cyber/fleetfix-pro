@@ -1,5 +1,6 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
 import { FieldValue, Timestamp, type DocumentData } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import { ServerAccessError, type ServerUserContext } from "@/lib/serverAuth";
@@ -7,6 +8,8 @@ import { requireIQ200Access } from "./access";
 import { validateReasoningResponse } from "./reasoningCore.ts";
 
 const JOB_ID = /^[A-Za-z0-9_-]{1,128}$/;
+const SESSION_CREATE_IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{16,128}$/;
+const SESSION_IDEMPOTENCY_PARENT = "__idempotency__";
 const IQ200_JOB_CONTEXT_NOTE_LIMIT = 20;
 const IQ200_JOB_CONTEXT_DIAGNOSTIC_LIMIT = 20;
 
@@ -152,20 +155,62 @@ export async function createIQ200Session(context: ServerUserContext, jobId: stri
   const body = input && typeof input === "object" ? input as Record<string, unknown> : {};
   const question = text(body.question);
   if (!question || question.length > 4000) throw new ServerAccessError("INVALID_INPUT", "Enter a question of no more than 4,000 characters.", 400);
-  const ref = snapshot.ref.collection("iq200_sessions").doc();
-  await ref.create({
-    companyId: context.companyId,
-    jobId: snapshot.id,
-    sessionId: ref.id,
-    createdBy: context.uid,
-    openedBy: context.uid,
-    initialQuestion: question,
-    state: "CONTEXT_READY",
-    responseStatus: "AI_NOT_ENABLED",
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
+  const hasIdempotencyKey = Object.prototype.hasOwnProperty.call(body, "idempotencyKey");
+  const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey.trim() : "";
+  if (!hasIdempotencyKey) {
+    const ref = snapshot.ref.collection("iq200_sessions").doc();
+    await ref.create({
+      companyId: context.companyId,
+      jobId: snapshot.id,
+      sessionId: ref.id,
+      createdBy: context.uid,
+      openedBy: context.uid,
+      initialQuestion: question,
+      state: "CONTEXT_READY",
+      responseStatus: "AI_NOT_ENABLED",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return { created: true, session: { id: ref.id, initialQuestion: question, state: "CONTEXT_READY", responseStatus: "AI_NOT_ENABLED" } };
+  }
+  if (!SESSION_CREATE_IDEMPOTENCY_KEY.test(idempotencyKey)) throw new ServerAccessError("INVALID_INPUT", "The session idempotency key is invalid.", 400);
+
+  const sessionRoot = snapshot.ref.collection("iq200_sessions");
+  const bindingRef = sessionRoot.doc(SESSION_IDEMPOTENCY_PARENT).collection("bindings").doc(idempotencyKey);
+  return adminDb.runTransaction(async (transaction) => {
+    const bindingSnapshot = await transaction.get(bindingRef);
+    if (bindingSnapshot.exists) {
+      const binding = bindingSnapshot.data() || {};
+      const sessionId = typeof binding.sessionId === "string" ? binding.sessionId : "";
+      if (binding.companyId !== context.companyId || binding.jobId !== snapshot.id || binding.userId !== context.uid || binding.idempotencyKey !== idempotencyKey || binding.question !== question || !SESSION_ID.test(sessionId)) {
+        throw new ServerAccessError("CONFLICT", "The session idempotency binding is invalid.", 409);
+      }
+      const sessionRef = sessionRoot.doc(sessionId);
+      const sessionSnapshot = await transaction.get(sessionRef);
+      const session = sessionSnapshot.data() || {};
+      if (!sessionSnapshot.exists || session.companyId !== context.companyId || session.jobId !== snapshot.id || session.createdBy !== context.uid || session.sessionId !== sessionId) {
+        throw new ServerAccessError("CONFLICT", "The session idempotency binding is invalid.", 409);
+      }
+      return { created: false, session: sessionEntry(sessionId, session) };
+    }
+
+    const sessionRef = sessionRoot.doc();
+    const session = {
+      companyId: context.companyId,
+      jobId: snapshot.id,
+      sessionId: sessionRef.id,
+      createdBy: context.uid,
+      openedBy: context.uid,
+      initialQuestion: question,
+      state: "CONTEXT_READY",
+      responseStatus: "AI_NOT_ENABLED",
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    };
+    transaction.create(sessionRef, session);
+    transaction.create(bindingRef, { companyId: context.companyId, jobId: snapshot.id, userId: context.uid, idempotencyKey, question, sessionId: sessionRef.id, createdAt: FieldValue.serverTimestamp() });
+    return { created: true, session: { id: sessionRef.id, initialQuestion: question, state: "CONTEXT_READY", responseStatus: "AI_NOT_ENABLED" } };
   });
-  return { session: { id: ref.id, initialQuestion: question, state: "CONTEXT_READY", responseStatus: "AI_NOT_ENABLED" } };
 }
 
 /* ═══════════════════════════════════════════════════════════════

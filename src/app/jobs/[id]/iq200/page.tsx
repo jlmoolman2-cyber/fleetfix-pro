@@ -5,6 +5,7 @@ import { use, useEffect, useRef, useState } from "react";
 import { Bot, ChevronLeft, History, Search, Send, ShieldCheck, Wrench } from "lucide-react";
 import {
   iq200Api,
+  createIQ200SessionIdempotencyKey,
   IQ200ApiError,
   createSubmissionGuard,
   tryAcquireSubmissionGuard,
@@ -68,6 +69,7 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
   // Phase 13D-2: Assessment retrieval refs
   const retrievalAbortRef = useRef<AbortController | null>(null);
   const retrievalCorrelationRef = useRef(createRequestCorrelation());
+  const sessionCreateKeyRef = useRef<{ question: string; key: string } | null>(null);
 
   async function loadHistory(filters: { q?: string; faultCode?: string; vehicleOnly?: boolean } = {}, signal?: AbortSignal) {
     const query = new URLSearchParams({ limit: "10" });
@@ -120,6 +122,7 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
     setSelectedSessionId(null);
     setAssessmentRetrievalLoading(false);
     setAssessmentRetrievalError("");
+    sessionCreateKeyRef.current = null;
     const isCurrentJob = () => active && activeJobIdRef.current === id && jobGenerationRef.current === generation;
 
     (async () => {
@@ -194,10 +197,16 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
 
     try {
       const submitted = question.trim();
+      const existingCreate = sessionCreateKeyRef.current;
+      const createKey = existingCreate?.question === submitted
+        ? existingCreate.key
+        : createIQ200SessionIdempotencyKey();
+      sessionCreateKeyRef.current = { question: submitted, key: createKey };
       const result = await iq200Api<{ session: Session }>(
         `/api/iq200/jobs/${encodeURIComponent(id)}/sessions`,
-        { method: "POST", body: JSON.stringify({ question: submitted }), signal: abortController.signal }
+        { method: "POST", body: JSON.stringify({ question: submitted, idempotencyKey: createKey }), signal: abortController.signal }
       );
+      if (sessionCreateKeyRef.current?.key === createKey) sessionCreateKeyRef.current = null;
 
       try {
         const reasoning = await iq200Api<{ featureState?: string; message: string; response: ReasoningResponse | null }>(

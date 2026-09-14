@@ -214,7 +214,7 @@ test("P14A.2 no IQ200 service trusts a client-supplied companyId", () => {
 
 test("P14A.3 session authorization remains job/company bound on every path", () => {
   const service = serviceSrc();
-  const create = section(service, "export async function createIQ200Session", "return { session:");
+  const create = section(service, "export async function createIQ200Session", "/* ═");
   // Server-derived scope on creation; the browser cannot choose the tenant.
   assert.match(create, /companyId: context\.companyId/);
   assert.match(create, /jobId: snapshot\.id/);

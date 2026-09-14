@@ -30,6 +30,10 @@ export class IQ200ApiError extends Error {
 
 export type IQ200ApiOptions = RequestInit & { signal?: AbortSignal };
 
+export function createIQ200SessionIdempotencyKey(): string {
+  return crypto.randomUUID();
+}
+
 export async function iq200Api<T>(path: string, init?: IQ200ApiOptions): Promise<T> {
   const auth = getAuth();
   await auth.authStateReady();

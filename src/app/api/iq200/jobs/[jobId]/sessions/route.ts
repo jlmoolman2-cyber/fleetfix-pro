@@ -12,7 +12,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ jobI
 export async function POST(request: Request, { params }: { params: Promise<{ jobId: string }> }) {
   try {
     const context = await authenticateServerRequest(request);
-    return Response.json(await createIQ200Session(context, (await params).jobId, await request.json()), { status: 201 });
+    const result = await createIQ200Session(context, (await params).jobId, await request.json());
+    return Response.json({ session: result.session }, { status: result.created ? 201 : 200, headers: { "cache-control": "no-store" } });
   } catch (error) {
     return safeServerErrorResponse(error);
   }
