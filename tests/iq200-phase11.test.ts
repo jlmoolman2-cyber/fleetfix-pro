@@ -27,8 +27,8 @@ test("P11.1 Known Fix collection is company scoped",()=>{
 // P11.2 — Creation defaults safely to DRAFT where applicable
 test("P11.2 creation defaults safely to DRAFT",()=>{
   const value=service();
-  assert.match(value,/status:"DRAFT",active:false/);
-  assert.match(value,/approvedBy:null,approvedAt:null/);
+  assert.match(value, /status:\s*"DRAFT",\s*active:\s*false/);
+  assert.match(value, /approvedBy:\s*null,\s*approvedAt:\s*null/);
   assert.throws(()=>validateKnownFixInput({title:"Valid",status:"APPROVED"}));
   assert.throws(()=>validateKnownFixInput({title:"Valid",approvedBy:"attacker"}));
 });
@@ -62,17 +62,17 @@ test("P11.5 Inactive is excluded from technician retrieval",()=>{
 // P11.6 — Approval requires correct permission
 test("P11.6 approval requires correct permission",()=>{
   const value=service();
-  assert.match(value,/action==="approve"\) requirePermission\(context,"Approve IQ200 Known Fixes"\)/);
-  assert.match(value,/status:"APPROVED",active:true,approvedBy:context\.uid,approvedAt:FieldValue\.serverTimestamp\(\)/);
+  assert.match(value, /action\s*===\s*"approve"\)\s*requirePermission\(context,\s*"Approve IQ200 Known Fixes"\)/);
+  assert.match(value, /status:\s*"APPROVED",\s*active:\s*true,\s*approvedBy:\s*context\.uid,\s*approvedAt:\s*FieldValue\.serverTimestamp\(\)/);
 });
 
 // P11.7 — Management requires correct permission
 test("P11.7 management requires correct permission",()=>{
   const value=service();
-  assert.match(value,/requirePermission\(context,"Manage IQ200 Known Fixes"\)/);
+  assert.match(value, /requirePermission\(context,\s*"Manage IQ200 Known Fixes"\)/);
   assert.match(value,/createKnownFix/);
   assert.match(value,/updateKnownFix/);
-  assert.match(value,/action==="inactivate"\) requirePermission\(context,"Manage IQ200 Known Fixes"\)/);
+  assert.match(value, /action\s*===\s*"inactivate"\)\s*requirePermission\(context,\s*"Manage IQ200 Known Fixes"\)/);
 });
 
 // P11.8 — View permission does not imply approval permission
@@ -86,17 +86,17 @@ test("P11.8 view permission does not imply approval permission",()=>{
 // P11.6 — Approval requires correct permission
 test("P11.6 approval requires correct permission",()=>{
   const value=service();
-  assert.match(value,/action==="approve"\) requirePermission\(context,"Approve IQ200 Known Fixes"\)/);
-  assert.match(value,/status:"APPROVED",active:true,approvedBy:context\.uid,approvedAt:FieldValue\.serverTimestamp\(\)/);
+  assert.match(value, /action\s*===\s*"approve"\)\s*requirePermission\(context,\s*"Approve IQ200 Known Fixes"\)/);
+  assert.match(value, /status:\s*"APPROVED",\s*active:\s*true,\s*approvedBy:\s*context\.uid,\s*approvedAt:\s*FieldValue\.serverTimestamp\(\)/);
 });
 
 // P11.7 — Management requires correct permission
 test("P11.7 management requires correct permission",()=>{
   const value=service();
-  assert.match(value,/requirePermission\(context,"Manage IQ200 Known Fixes"\)/);
+  assert.match(value, /requirePermission\(context,\s*"Manage IQ200 Known Fixes"\)/);
   assert.match(value,/createKnownFix/);
   assert.match(value,/updateKnownFix/);
-  assert.match(value,/action==="inactivate"\) requirePermission\(context,"Manage IQ200 Known Fixes"\)/);
+  assert.match(value, /action\s*===\s*"inactivate"\)\s*requirePermission\(context,\s*"Manage IQ200 Known Fixes"\)/);
 });
 
 // P11.8 — View permission does not imply approval permission
@@ -120,8 +120,8 @@ test("P11.9 cross-company access/retrieval denied",()=>{
 // P11.10 — Approval audit information retained
 test("P11.10 approval audit information retained",()=>{
   const value=service();
-  assert.match(value,/approvedBy:context\.uid/);
-  assert.match(value,/approvedAt:FieldValue\.serverTimestamp\(\)/);
+  assert.match(value, /approvedBy:\s*context\.uid/);
+  assert.match(value, /approvedAt:\s*FieldValue\.serverTimestamp\(\)/);
   assert.match(value,/approvedBy: data\.approvedBy/);
   assert.match(value,/approvedAt: iso\(data\.approvedAt\)/);
 });
@@ -139,10 +139,10 @@ test("P11.11 provenance retained",()=>{
 // P11.12 — Revision handling remains valid
 test("P11.12 revision handling remains valid",()=>{
   const value=service();
-  assert.match(value,/revision:1/);
+  assert.match(value, /revision:\s*1/);
   assert.match(value,/knownFixEditBehavior/);
-  assert.match(value,/shouldIncrementRevision\?currentRevision\+1:currentRevision/);
-  assert.match(value,/status:"DRAFT",active:false,revision:/);
+  assert.match(value, /revision:\s*editBehavior\s*===\s*"revision"\s*\?\s*Number\(stored\.revision\)\s*\+\s*1\s*:\s*stored\.revision/);
+  assert.match(value, /status:\s*"DRAFT",\s*active:\s*false,\s*revision:/);
 });
 
 // P11.13 — Applicability matching works using actual existing rules
@@ -175,7 +175,7 @@ test("P11.15 technician UI does not expose approval controls",()=>{
 // P11.16 — Known Fix evidence references are bounded/deterministic
 test("P11.16 Known Fix evidence references are bounded/deterministic",()=>{
   const value=page();
-  assert.match(value,/EvidenceBadge reference=\{`KNOWN_FIX_\$\{index\+1\}`\}/);
+  assert.match(value, /EvidenceBadge reference=\{`KNOWN_FIX_\$\{index\s*\+\s*1\}`\}/);
   assert.ok(KNOWN_FIX_MAX_RESULTS===20);
   assert.ok(KNOWN_FIX_MAX_CANDIDATES===100);
 });
@@ -252,7 +252,7 @@ test("P11.25 no automatic FleetFix action is introduced",()=>{
 // P11.16 — Known Fix evidence references are bounded/deterministic
 test("P11.16 Known Fix evidence references are bounded/deterministic",()=>{
   const value=page();
-  assert.match(value,/EvidenceBadge reference=\{`KNOWN_FIX_\$\{index\+1\}`\}/);
+  assert.match(value, /EvidenceBadge reference=\{`KNOWN_FIX_\$\{index\s*\+\s*1\}`\}/);
   assert.ok(KNOWN_FIX_MAX_RESULTS===20);
   assert.ok(KNOWN_FIX_MAX_CANDIDATES===100);
 });

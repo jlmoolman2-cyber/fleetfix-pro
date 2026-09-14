@@ -10,6 +10,7 @@ export type KnownFixStatus = typeof KNOWN_FIX_STATUSES[number];
 export type KnownFixSearch = { q: string; faultCode: string; component: string; limit: number };
 export type JobApplicability = { make: string; model: string; vehicleType: string; engineFamily: string; faultCodes: string[]; text: string };
 export type KnownFixApprovalRequirement = "title" | "category" | "applicability" | "faultContext" | "diagnosticProcedure" | "findingsConditions" | "repairProcedure" | "sourceReference" | "safetyHandling" | "verificationCriteria";
+export type StoredKnownFix = Record<string, unknown>;
 
 const FIELDS = ["title", "category", "vehicleMake", "vehicleModel", "vehicleType", "engineFamily", "otherApplicability", "systemComponent", "diagnosticProcedure", "expectedValues", "findingsConditions", "repairProcedure", "safetyWarnings", "technicalCautions", "notes", "sourceReference"] as const;
 const ARRAYS = ["symptoms", "faultCodes", "requiredTools", "partsComponents", "relatedHistoricalJobIds"] as const;
@@ -29,6 +30,46 @@ export function validateKnownFixInput(value: unknown) {
   if (!output.title) throw new Error("INVALID_INPUT");
   for (const field of ARRAYS) output[field] = cleanArray(input[field], field === "relatedHistoricalJobIds" ? 20 : 40, field === "faultCodes" ? KNOWN_FIX_FAULT_MAX : field === "relatedHistoricalJobIds" ? 128 : 300);
   if (!(output.relatedHistoricalJobIds as string[]).every((id) => KNOWN_FIX_ID.test(id))) throw new Error("INVALID_INPUT");
+  return output;
+}
+const STORED_STRING_LIMITS: Record<string, number> = Object.fromEntries(FIELDS.map((field) => [field, field === "title" ? 160 : ["category", "vehicleMake", "vehicleModel", "vehicleType", "engineFamily", "systemComponent"].includes(field) ? 100 : 8000]));
+const STORED_ARRAY_LIMITS: Record<string, { count: number; length: number }> = {
+  symptoms: { count: 40, length: 300 }, faultCodes: { count: 40, length: KNOWN_FIX_FAULT_MAX }, requiredTools: { count: 40, length: 300 },
+  partsComponents: { count: 40, length: 300 }, relatedHistoricalJobIds: { count: 20, length: 128 },
+};
+function storedTimestamp(value: unknown) {
+  return value == null || typeof value === "string" || value instanceof Date || Boolean(value && typeof value === "object" && "toDate" in value && typeof (value as { toDate?: unknown }).toDate === "function");
+}
+export function parseStoredKnownFix(value: unknown, companyId?: string): StoredKnownFix | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const input = value as Record<string, unknown>;
+  if (input.companyId !== undefined && (typeof input.companyId !== "string" || (companyId !== undefined && input.companyId !== companyId))) return null;
+  if (typeof input.title !== "string" || !input.title.trim() || input.title.trim().length > STORED_STRING_LIMITS.title) return null;
+  if (input.status !== undefined && !KNOWN_FIX_STATUSES.includes(input.status as KnownFixStatus)) return null;
+  if (input.active !== undefined && typeof input.active !== "boolean") return null;
+  if (input.revision !== undefined && normalizeKnownFixRevision(input.revision) !== input.revision) return null;
+  const output: StoredKnownFix = { companyId: input.companyId, status: input.status ?? "DRAFT", active: input.active ?? false, revision: input.revision ?? 1 };
+  for (const field of FIELDS) {
+    const raw = input[field];
+    if (raw !== undefined && (typeof raw !== "string" || raw.trim().length > STORED_STRING_LIMITS[field])) return null;
+    output[field] = typeof raw === "string" ? raw.trim() : "";
+  }
+  for (const field of ARRAYS) {
+    const raw = input[field];
+    const limits = STORED_ARRAY_LIMITS[field];
+    if (raw !== undefined && (!Array.isArray(raw) || raw.length > limits.count || raw.some((item) => typeof item !== "string" || item.trim().length > limits.length))) return null;
+    output[field] = Array.isArray(raw) ? [...new Set(raw.map((item) => (item as string).trim()).filter(Boolean))] : [];
+  }
+  if (!(output.relatedHistoricalJobIds as string[]).every((id) => KNOWN_FIX_ID.test(id))) return null;
+  for (const field of ["createdBy", "updatedBy", "approvedBy"] as const) {
+    const raw = input[field];
+    if (raw != null && (typeof raw !== "string" || raw.length > 256)) return null;
+    output[field] = raw == null ? "" : raw;
+  }
+  for (const field of ["createdAt", "updatedAt", "approvedAt"] as const) {
+    if (!storedTimestamp(input[field])) return null;
+    output[field] = input[field] ?? null;
+  }
   return output;
 }
 function hasText(value: unknown) { return typeof value === "string" && Boolean(value.trim()); }
