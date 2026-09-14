@@ -688,7 +688,7 @@ test("P14I.1 session listing remains job-scoped and bounded", () => {
   const sessions = section(serviceSrc(), "export async function listIQ200Sessions", "export async function createIQ200Session");
   assert.match(sessions, /authorisedJob\(context, jobId\)/);
   assert.match(sessions, /iq200_sessions"\)\.orderBy\("updatedAt", "desc"\)\.limit\(50\)/);
-  assert.match(sessions, /return \{ sessions: sessions\.docs\.map/);
+  assert.match(sessions, /return \{ sessions: sessions\.docs[\s\S]*\.map/);
 });
 
 test("P14I.2 assessment retrieval enforces the session identity, success-only, bounded contract", () => {

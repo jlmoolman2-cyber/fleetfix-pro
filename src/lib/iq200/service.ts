@@ -138,7 +138,13 @@ export async function getIQ200JobContext(context: ServerUserContext, jobId: stri
 export async function listIQ200Sessions(context: ServerUserContext, jobId: string) {
   const { snapshot } = await authorisedJob(context, jobId);
   const sessions = await snapshot.ref.collection("iq200_sessions").orderBy("updatedAt", "desc").limit(50).get();
-  return { sessions: sessions.docs.map((doc) => sessionEntry(doc.id, doc.data())) };
+  return { sessions: sessions.docs
+    .filter((doc) => {
+      const data = doc.data();
+      return (data.companyId === undefined || data.companyId === context.companyId)
+        && (data.jobId === undefined || data.jobId === snapshot.id);
+    })
+    .map((doc) => sessionEntry(doc.id, doc.data())) };
 }
 
 export async function createIQ200Session(context: ServerUserContext, jobId: string, input: unknown) {

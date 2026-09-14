@@ -67,6 +67,10 @@ async function candidateSnapshots(companyId: string, currentId: string, current:
   return deduplicateHistoricalCandidates<QueryDocumentSnapshot>(currentId, snapshots.flatMap((snapshot) => snapshot.docs));
 }
 
+function hasCompatibleCompany(data: DocumentData, companyId: string) {
+  return data.companyId === undefined || data.companyId === companyId;
+}
+
 async function enrich(snapshot: DocumentSnapshot) {
   const [notes, materials, diagnostics, faults] = await Promise.all([
     snapshot.ref.collection("notes").limit(10).get(), snapshot.ref.collection("materials").limit(20).get(),
@@ -85,7 +89,8 @@ export async function searchIQ200History(context: ServerUserContext, jobId: stri
   let filters;
   try { filters = parseHistoryFilters(new URL(requestUrl)); } catch { throw new ServerAccessError("INVALID_INPUT", "Historical search filters are invalid.", 400); }
   const { snapshot: currentSnapshot, data: currentData } = await authorisedJob(context, jobId);
-  const candidates = await candidateSnapshots(context.companyId, currentSnapshot.id, currentData);
+  const candidates = (await candidateSnapshots(context.companyId, currentSnapshot.id, currentData))
+    .filter((candidate) => hasCompatibleCompany(candidate.data(), context.companyId));
   const topLevelCandidates = candidates.map((candidate) => normalizeJob(candidate.id, candidate.data()));
   const shortlistIds = new Set(selectHistoricalEnrichmentShortlist(normalizeJob(currentSnapshot.id, currentData), topLevelCandidates, filters).map((candidate) => candidate.id));
   const [current, ...enrichedCandidates] = await Promise.all([
