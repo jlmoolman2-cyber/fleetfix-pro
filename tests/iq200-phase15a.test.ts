@@ -42,15 +42,15 @@ test("P15A.4 session listing accepts matching or missing identity fields", () =>
   const listing = value.slice(value.indexOf("export async function listIQ200Sessions"), value.indexOf("export async function createIQ200Session"));
   assert.match(listing, /data\.companyId === undefined \|\| data\.companyId === context\.companyId/);
   assert.match(listing, /data\.jobId === undefined \|\| data\.jobId === snapshot\.id/);
-  assert.match(listing, /\.filter\(\(doc\) =>/);
-  assert.match(listing, /\.map\(\(doc\) => sessionEntry\(doc\.id, doc\.data\(\)\)\)/);
+  assert.match(listing, /\.filter\(\(\{ data \}\) =>/);
+  assert.match(listing, /\.map\(\(\{ doc, data \}\) => sessionEntry\(doc\.id, data\)\)/);
 });
 
 test("P15A.5 contradictory session companyId and jobId cannot be projected", () => {
   const value = service();
   const listing = value.slice(value.indexOf("export async function listIQ200Sessions"), value.indexOf("export async function createIQ200Session"));
-  const filterIndex = listing.indexOf(".filter((doc)");
-  const mapIndex = listing.indexOf(".map((doc)");
+  const filterIndex = listing.indexOf(".filter(({ data })");
+  const mapIndex = listing.indexOf(".map(({ doc, data })");
   assert.ok(filterIndex >= 0 && filterIndex < mapIndex, "session identity filtering must precede DTO projection");
   assert.match(listing, /&& \(data\.jobId === undefined \|\| data\.jobId === snapshot\.id\)/);
   assert.match(value, /data\?\.companyId !== context\.companyId/);

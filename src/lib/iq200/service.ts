@@ -30,6 +30,17 @@ function dateValue(value: unknown): string | null {
   return null;
 }
 
+function sessionOrderValue(value: unknown): number | null {
+  try {
+    const normalized = dateValue(value);
+    if (!normalized) return null;
+    const timestamp = Date.parse(normalized);
+    return Number.isNaN(timestamp) ? null : timestamp;
+  } catch {
+    return null;
+  }
+}
+
 function statusEntry(entry: unknown) {
   const data = entry && typeof entry === "object" ? entry as DocumentData : {};
   return {
@@ -140,14 +151,27 @@ export async function getIQ200JobContext(context: ServerUserContext, jobId: stri
 
 export async function listIQ200Sessions(context: ServerUserContext, jobId: string) {
   const { snapshot } = await authorisedJob(context, jobId);
-  const sessions = await snapshot.ref.collection("iq200_sessions").orderBy("updatedAt", "desc").limit(50).get();
-  return { sessions: sessions.docs
-    .filter((doc) => {
-      const data = doc.data();
-      return (data.companyId === undefined || data.companyId === context.companyId)
-        && (data.jobId === undefined || data.jobId === snapshot.id);
-    })
-    .map((doc) => sessionEntry(doc.id, doc.data())) };
+  const sessionRoot = snapshot.ref.collection("iq200_sessions");
+  const [updatedSessions, createdSessions] = await Promise.all([
+    sessionRoot.orderBy("updatedAt", "desc").limit(50).get(),
+    sessionRoot.orderBy("createdAt", "desc").limit(50).get(),
+  ]);
+  const documents = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  for (const doc of [...updatedSessions.docs, ...createdSessions.docs]) documents.set(doc.id, doc);
+  return {
+    sessions: [...documents.values()]
+      .map((doc) => ({ doc, data: doc.data() }))
+      .filter(({ data }) => {
+        return (data.companyId === undefined || data.companyId === context.companyId)
+          && (data.jobId === undefined || data.jobId === snapshot.id);
+      })
+      .map(({ doc, data }) => ({ doc, data, updatedAt: sessionOrderValue(data.updatedAt), createdAt: sessionOrderValue(data.createdAt) }))
+      .map((entry) => ({ ...entry, effectiveAt: entry.updatedAt ?? entry.createdAt }))
+      .filter((entry): entry is typeof entry & { effectiveAt: number } => entry.effectiveAt !== null)
+      .sort((a, b) => b.effectiveAt - a.effectiveAt || a.doc.id.localeCompare(b.doc.id))
+      .slice(0, 50)
+      .map(({ doc, data }) => sessionEntry(doc.id, data))
+  };
 }
 
 export async function createIQ200Session(context: ServerUserContext, jobId: string, input: unknown) {
