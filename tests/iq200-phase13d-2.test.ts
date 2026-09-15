@@ -98,9 +98,17 @@ test("P13D2.10 malformed assessment excluded by canonical shape validation", () 
 });
 
 test("P13D2.11 allowlisted DTO returns only session and assessment", () => {
-  const value = service();
+  const value = service().replace(/\r\n/g, "\n");
   const retrieval = section(value, "export async function getIQ200SessionAssessment", "};\n}");
-  assert.match(retrieval, /return \{[\s\S]*session: sessionEntry[\s\S]*assessment/);
+  assert.ok(retrieval.length > 0, "assessment retrieval section must be found");
+  assert.match(retrieval, /const validated = validateReasoningResponse\(rawResponse\)/);
+  const projection = section(retrieval, "assessment = {", "      };");
+  assert.ok(projection.length > 0, "validated assessment projection must be found");
+  assert.match(projection, /summary: validated\.summary[\s\S]*observations: validated\.observations\.map[\s\S]*hypotheses: validated\.hypotheses\.map[\s\S]*checks: validated\.checks\.map[\s\S]*safetyWarnings: validated\.safetyWarnings\.map[\s\S]*missingInformation: validated\.missingInformation\.map[\s\S]*evidenceUsed: validated\.evidenceUsed\.map[\s\S]*confidence: validated\.confidence[\s\S]*limitations: validated\.limitations\.map/);
+  assert.doesNotMatch(projection, /\.\.\.|rawResponse|interaction\.data/);
+  const response = retrieval.slice(retrieval.lastIndexOf("return {")).trimStart();
+  assert.match(response, /^return \{\s*session: sessionEntry\(session\.id, session\.data\(\) \|\| \{\}\),\s*assessment,\s*$/);
+  assert.doesNotMatch(response, /\.\.\.|interactionId|provider|providerMetadata|companyId|jobId|createdBy|createdAt|updatedBy|updatedAt|approvedBy|approvedAt|rawResponse|interaction\.data/);
 });
 
 test("P13D2.12 interactionId excluded from DTO", () => {

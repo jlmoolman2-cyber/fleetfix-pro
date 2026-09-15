@@ -129,10 +129,10 @@ test("P11.10 approval audit information retained",()=>{
 // P11.11 — Provenance retained
 test("P11.11 provenance retained",()=>{
   const value=service();
-  assert.match(value,/createdBy:context\.uid/);
-  assert.match(value,/createdAt:FieldValue\.serverTimestamp\(\)/);
-  assert.match(value,/updatedBy:context\.uid/);
-  assert.match(value,/updatedAt:FieldValue\.serverTimestamp\(\)/);
+  assert.match(value,/createdBy: context\.uid/);
+  assert.match(value,/createdAt: FieldValue\.serverTimestamp\(\)/);
+  assert.match(value,/updatedBy: context\.uid/);
+  assert.match(value,/updatedAt: FieldValue\.serverTimestamp\(\)/);
   assert.match(value,/sourceReference/);
 });
 

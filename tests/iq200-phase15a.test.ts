@@ -59,18 +59,22 @@ test("P15A.5 contradictory session companyId and jobId cannot be projected", () 
 
 test("P15A.6 Known Fix technician reads require matching or missing companyId", () => {
   const value = knownFix();
-  assert.match(value, /function hasCompatibleCompany\(data: DocumentData, companyId: string\)/);
+
   const search = value.slice(value.indexOf("export async function searchKnownFixesForJob"), value.indexOf("export async function listKnownFixes"));
-  assert.match(search, /hasCompatibleCompany\(doc\.data\(\), context\.companyId\) && doc\.data\(\)\.active === true/);
+  assert.match(search, /parseStoredKnownFix\(doc\.data\(\), context\.companyId\)/);
+  assert.match(search, /parseStoredKnownFix\(doc\.data\(\), context\.companyId\)[\s\S]*\.filter\(\(item\) => item\.data\)[\s\S]*knownFixMatch\(job, item\.data!, search\)/);
+  assert.match(search, /active === true/);
   assert.match(search, /where\("status", "==", "APPROVED"\)/);
 });
 
 test("P15A.7 Known Fix admin reads exclude contradictory companyId before DTO output", () => {
   const value = knownFix();
   const listing = value.slice(value.indexOf("export async function listKnownFixes"), value.indexOf("export async function createKnownFix"));
-  assert.match(listing, /snapshot\.docs\.filter\(\(doc\)=>hasCompatibleCompany\(doc\.data\(\),context\.companyId\)\)\.map\(\(doc\)=>adminDto/);
-  assert.match(value, /if\s*\(!hasCompatibleCompany\(currentData, context\.companyId\)\)\s*throw new ServerAccessError\("NOT_FOUND"/);
-  assert.match(value, /if\s*\(!hasCompatibleCompany\(data,context\.companyId\)\)throw new ServerAccessError\("NOT_FOUND"/);
+  assert.match(listing, /parseStoredKnownFix\(doc\.data\(\), context\.companyId\)[\s\S]*\.filter\(\(item\) => item\.data\)[\s\S]*adminDto\(item\.id, item\.data!\)/);
+  const update = value.slice(value.indexOf("export async function updateKnownFix"), value.indexOf("export async function changeKnownFixStatus"));
+  assert.match(update, /transaction\.get\(ref\)[\s\S]*parseStoredKnownFix\(snap\.data\(\), context\.companyId\)[\s\S]*if \(!stored\) throw new ServerAccessError\("NOT_FOUND"/);
+  const lifecycle = value.slice(value.indexOf("export async function changeKnownFixStatus"));
+  assert.match(lifecycle, /transaction\.get\(ref\)[\s\S]*parseStoredKnownFix\(snap\.data\(\), context\.companyId\)[\s\S]*if \(!stored\) throw new ServerAccessError\("NOT_FOUND"/);
 });
 
 test("P15A.8 Known Fix matching and lifecycle behavior remain unchanged", () => {

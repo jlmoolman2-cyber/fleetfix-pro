@@ -64,24 +64,24 @@ test("P12A lifecycle permits only Draft approval and Approved inactivation", () 
 
 test("P12A service fails closed before approval writes and returns fixed safe errors", () => {
   const service = source("src/lib/iq200/knownFixService.ts");
-  const transition = service.indexOf("knownFixTransitionAllowed(data.status,action)");
-  const readiness = service.indexOf("knownFixApprovalReadiness(data)");
-  const write = service.indexOf('status:"APPROVED",active:true');
+  const transition = service.indexOf("knownFixTransitionAllowed(stored.status, action)");
+  const readiness = service.indexOf("knownFixApprovalReadiness(stored)");
+  const write = service.indexOf('status: "APPROVED", active: true');
   assert.ok(transition > 0 && readiness > transition && write > readiness);
   assert.match(service, /INVALID_KNOWN_FIX_TRANSITION/);
   assert.match(service, /KNOWN_FIX_NOT_READY_FOR_APPROVAL/);
-  assert.match(service, /approvedBy:context\.uid,approvedAt:FieldValue\.serverTimestamp\(\)/);
+  assert.match(service, /approvedBy: context\.uid, approvedAt: FieldValue\.serverTimestamp\(\)/);
   assert.match(service, /adminDb\.runTransaction/);
   assert.match(service, /transaction\.get\(ref\)/);
-  assert.match(service, /transaction\.update\(ref,\{status:"APPROVED"/);
+  assert.match(service, /transaction\.update\(ref, \{ status: "APPROVED", active: true/);
 });
 
 test("P12A edit of Approved remains Draft, inactive, revision-incrementing, and unapproved", () => {
   const service = source("src/lib/iq200/knownFixService.ts");
-  assert.match(service, /knownFixEditBehavior\(currentStatus\)/);
-  assert.match(service, /status:"DRAFT",active:false/);
-  assert.match(service, /shouldIncrementRevision\?currentRevision\+1:currentRevision/);
-  assert.match(service, /approvedBy:null,approvedAt:null/);
+  assert.match(service, /knownFixEditBehavior\(stored\.status\)/);
+  assert.match(service, /status: "DRAFT", active: false/);
+  assert.match(service, /revision: editBehavior === "revision" \? Number\(stored\.revision\) \+ 1 : stored\.revision/);
+  assert.match(service, /approvedBy: null, approvedAt: null/);
 });
 
 test("P12A permissions remain separate and company scope remains server-owned", () => {
@@ -89,7 +89,7 @@ test("P12A permissions remain separate and company scope remains server-owned", 
   assert.equal(manageOnly["Manage IQ200 Known Fixes"], true);
   assert.equal(manageOnly["Approve IQ200 Known Fixes"], false);
   const service = source("src/lib/iq200/knownFixService.ts");
-  assert.match(service, /action==="approve"\) requirePermission\(context,"Approve IQ200 Known Fixes"\)/);
+  assert.match(service, /action === "approve"\) requirePermission\(context, "Approve IQ200 Known Fixes"\)/);
   assert.match(service, /companies\/\$\{companyId\}\/iq200_known_fixes/);
   assert.doesNotMatch(service, /body\.companyId|searchParams\.get\("companyId"\)/);
 });

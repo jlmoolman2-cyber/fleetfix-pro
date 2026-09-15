@@ -360,11 +360,11 @@ test("P14D.1 technician retrieval pipeline = APPROVED + active + matcher", () =>
   assert.match(search, /collectionFor\(context\.companyId\)\.where\("status", "==", "APPROVED"\)/);
   assert.match(search, /\.limit\(KNOWN_FIX_MAX_CANDIDATES\)/);
   assert.match(search, /doc\.data\(\)\.active === true/);
-  assert.match(search, /knownFixMatch\(job, doc\.data\(\), search\)/);
-  assert.match(search, /\.filter\(\(item\) => item\.match\)/);
-  assert.match(search, /\.sort\(\(a,b\) => b\.match!\.score-a\.match!\.score\)/);
-  assert.match(search, /\.slice\(0,search\.limit\)/);
-  assert.match(search, /technicianDto\(item\.doc\.id,item\.doc\.data\(\),item\.match!\)/);
+  assert.match(search, /parseStoredKnownFix\(doc\.data\(\), context\.companyId\)/);
+  assert.match(search, /parseStoredKnownFix\(doc\.data\(\), context\.companyId\)[\s\S]*\.filter\(\(item\) => item\.data\)[\s\S]*knownFixMatch\(job, item\.data!, search\)/);
+  assert.match(search, /knownFixMatch\(job, item\.data!, search\)[\s\S]*\.filter\(\(item\) => item\.match\)/);
+  assert.match(search, /\.sort\(\(a, b\) => b\.match!\.score - a\.match!\.score\)\.slice\(0, search\.limit\)/);
+  assert.match(search, /technicianDto\(item\.doc\.id, item\.data!, item\.match!\)/);
 });
 
 test("P14D.2 make/model alone cannot establish applicability", () => {

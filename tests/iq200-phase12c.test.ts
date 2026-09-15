@@ -191,8 +191,8 @@ test("P12C same-record calls are blocked while unrelated records remain independ
 
 test("P12C.12 server lifecycle remains authoritative and guarded",()=>{
   const value=service();
-  assert.match(value,/knownFixTransitionAllowed\(data\.status,action\)/);
-  assert.match(value,/knownFixApprovalReadiness\(data\)/);
+  assert.match(value,/knownFixTransitionAllowed\(stored\.status, action\)/);
+  assert.match(value,/knownFixApprovalReadiness\(stored\)/);
   assert.match(value,/adminDb\.runTransaction/);
 });
 

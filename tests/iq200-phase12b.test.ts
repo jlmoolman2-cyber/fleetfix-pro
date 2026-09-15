@@ -13,54 +13,54 @@ const page = () => source("src/app/admin/iq200-known-fixes/page.tsx");
 test("P12B.1 DRAFT edit remains DRAFT", () => {
   assert.equal(knownFixEditBehavior("DRAFT"), "allowed");
   const svc = service();
-  assert.match(svc, /status:"DRAFT"/);
+  assert.match(svc, /status: "DRAFT"/);
 });
 
 test("P12B.2 DRAFT edit does not increment revision", () => {
   assert.equal(knownFixEditBehavior("DRAFT"), "allowed");
   const svc = service();
-  assert.match(svc, /shouldIncrementRevision\?currentRevision\+1:currentRevision/);
+  assert.match(svc, /revision: editBehavior === "revision" \? Number\(stored\.revision\) \+ 1 : stored\.revision/);
 });
 
 test("P12B.3 APPROVED edit becomes DRAFT", () => {
   assert.equal(knownFixEditBehavior("APPROVED"), "revision");
   const svc = service();
-  assert.match(svc, /status:"DRAFT"/);
+  assert.match(svc, /status: "DRAFT"/);
 });
 
 test("P12B.4 APPROVED edit increments revision exactly once", () => {
   assert.equal(knownFixEditBehavior("APPROVED"), "revision");
   const svc = service();
-  assert.match(svc, /currentRevision\+1/);
-  assert.doesNotMatch(svc, /currentRevision\+2|revision\+2/);
+  assert.match(svc, /Number\(stored\.revision\) \+ 1/);
+  assert.doesNotMatch(svc, /revision.*\+ 2/);
 });
 
 test("P12B.5 APPROVED edit clears approvedBy", () => {
   const svc = service();
-  assert.match(svc, /approvedBy:null/);
+  assert.match(svc, /approvedBy: null/);
 });
 
 test("P12B.6 APPROVED edit clears approvedAt", () => {
   const svc = service();
-  assert.match(svc, /approvedAt:null/);
+  assert.match(svc, /approvedAt: null/);
 });
 
 test("P12B.7 APPROVED edit sets active false", () => {
   const svc = service();
-  assert.match(svc, /active:false/);
+  assert.match(svc, /active: false/);
 });
 
 test("P12B.8 INACTIVE edit is rejected", () => {
   assert.equal(knownFixEditBehavior("INACTIVE"), "denied");
   const svc = service();
   assert.match(svc, /INACTIVE_KNOWN_FIX_LOCKED/);
-  assert.match(svc, /editBehavior==="denied"/);
+  assert.match(svc, /editBehavior === "denied"/);
 });
 
 test("P12B.9 INACTIVE edit cannot become DRAFT", () => {
   assert.equal(knownFixEditBehavior("INACTIVE"), "denied");
   const svc = service();
-  assert.match(svc, /if\(editBehavior==="denied"\) throw/);
+  assert.match(svc, /if \(editBehavior === "denied"\) throw/);
 });
 
 test("P12B.10 INACTIVE edit cannot become APPROVED", () => {
@@ -71,15 +71,17 @@ test("P12B.10 INACTIVE edit cannot become APPROVED", () => {
 test("P12B.11 INACTIVE cannot become active", () => {
   assert.equal(knownFixEditBehavior("INACTIVE"), "denied");
   const svc = service();
-  assert.match(svc, /editBehavior==="denied"\) throw new ServerAccessError\("INACTIVE_KNOWN_FIX_LOCKED"/);
+  assert.match(svc, /if \(editBehavior === "denied"\) throw new ServerAccessError\("INACTIVE_KNOWN_FIX_LOCKED"/);
 });
 
 test("P12B.12 INACTIVE revision is not altered by rejected edit", () => {
   assert.equal(knownFixEditBehavior("INACTIVE"), "denied");
   const svc = service();
   const updateFn = svc.slice(svc.indexOf("export async function updateKnownFix"), svc.indexOf("export async function changeKnownFixStatus"));
-  assert.match(updateFn, /if\(editBehavior==="denied"\) throw/);
-  assert.doesNotMatch(updateFn, /revision.*INACTIVE|INACTIVE.*revision/);
+  assert.match(updateFn, /if \(editBehavior === "denied"\) throw/);
+  const deniedIndex = updateFn.indexOf('editBehavior === "denied"');
+  const revisionIndex = updateFn.indexOf("revision:");
+  assert.ok(deniedIndex >= 0 && revisionIndex >= 0 && deniedIndex < revisionIndex);
 });
 
 test("P12B.13 only DRAFT can approve", () => {
@@ -167,9 +169,9 @@ test("P12B service uses atomic transaction for update", () => {
 test("P12B service reads status from transaction snapshot", () => {
   const svc = service();
   const updateFn = svc.slice(svc.indexOf("export async function updateKnownFix"), svc.indexOf("export async function changeKnownFixStatus"));
-  assert.match(updateFn, /const snap=await transaction\.get\(ref\)/);
-  assert.match(updateFn, /currentData=snap\.data\(\)/);
-  assert.match(updateFn, /knownFixEditBehavior\(currentStatus\)/);
+  assert.match(updateFn, /const snap = await transaction\.get\(ref\)/);
+  assert.match(updateFn, /parseStoredKnownFix\(snap\.data\(\), context\.companyId\)/);
+  assert.match(updateFn, /knownFixEditBehavior\(stored\.status\)/);
 });
 
 test("P12B no Reactivate button exists in admin UI", () => {
@@ -253,7 +255,7 @@ test("P12B revision calculations cannot produce invalid numbers", () => {
 test("P12B update transaction uses the pure normalized revision", () => {
   const svc = service();
   const updateFn = svc.slice(svc.indexOf("export async function updateKnownFix"), svc.indexOf("export async function changeKnownFixStatus"));
-  assert.match(updateFn, /currentRevision=normalizeKnownFixRevision\(currentData\.revision\)/);
-  assert.match(updateFn, /revision:shouldIncrementRevision\?currentRevision\+1:currentRevision/);
-  assert.doesNotMatch(updateFn, /Number\(currentData\.revision/);
+  assert.match(updateFn, /parseStoredKnownFix\(snap\.data\(\), context\.companyId\)/);
+  assert.match(updateFn, /revision: editBehavior === "revision" \? Number\(stored\.revision\) \+ 1 : stored\.revision/);
+
 });
