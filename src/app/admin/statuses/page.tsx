@@ -22,8 +22,11 @@ import {
 import {
   COMPANY_ID,
 } from "@/lib/company";
+import { adminStatusPolicy } from "@/lib/jobStatusAdmin";
 
 type Status = {
+
+  [field: string]: unknown;
 
   id: string;
 
@@ -40,6 +43,8 @@ type Status = {
   closeJob?: boolean;
 
   active?: boolean;
+
+  systemKey?: unknown;
 };
 
 export default function StatusesPage() {
@@ -364,16 +369,17 @@ export default function StatusesPage() {
 
             {statuses.map(
               (status, index) => {
-
-                const isLockedStartStatus =
-                  status.name
-                    .replace(
-                      /[^\w\s]/gi,
-                      ""
-                    )
-                    .trim()
-                    .toLowerCase() ===
-                  "job booked";
+                const policy = adminStatusPolicy(statuses, status);
+                const isLockedStartStatus = policy.jobBookedWorkflowLocked;
+                const identityBadge = policy.state === "SYSTEM"
+                  ? "System"
+                  : policy.state === "LEGACY_SYSTEM"
+                    ? "Legacy System"
+                    : policy.state === "AMBIGUOUS"
+                      ? "Ambiguous"
+                      : policy.state === "INVALID"
+                        ? "Invalid"
+                        : "";
 
                 return (
 
@@ -397,6 +403,16 @@ export default function StatusesPage() {
                         {status.name}
 
                       </span>
+                      {identityBadge && (
+                        <span className={`ml-2 inline-flex rounded-full px-2 py-1 text-[10px] font-black uppercase ${
+                          policy.state === "AMBIGUOUS" || policy.state === "INVALID"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}>
+                          {identityBadge}
+                          {policy.canonicalLabel ? ` · ${policy.canonicalLabel}` : ""}
+                        </span>
+                      )}
 
                     </td>
 
@@ -525,9 +541,12 @@ export default function StatusesPage() {
 
                       <button
                         type="button"
+                        disabled={status.active !== false ? !policy.canDisable : !policy.canEnable}
                         onClick={async () => {
-
-                          if (isLockedStartStatus) {
+                          if (
+                            (status.active !== false && !policy.canDisable) ||
+                            (status.active === false && !policy.canEnable)
+                          ) {
                             return;
                           }
                           try {
@@ -627,15 +646,15 @@ export default function StatusesPage() {
       py-2
       text-xs
       font-black
-      ${isLockedStartStatus
-                            ? "bg-green-600 text-white"
+      ${status.active !== false && !policy.canDisable
+                            ? "cursor-not-allowed bg-green-600 text-white"
                             : status.active === false
                               ? "bg-gray-200 text-gray-700"
                               : "bg-green-600 text-white"
                           }
     `}
                       >
-                        {isLockedStartStatus
+                        {status.active !== false && !policy.canDisable
                           ? "LOCKED"
                           : status.active === false
                             ? "INACTIVE"
@@ -767,9 +786,9 @@ export default function StatusesPage() {
                         </Link>
                         <button
                           type="button"
+                          disabled={!policy.canDelete}
                           onClick={() => {
-
-                            if (isLockedStartStatus) {
+                            if (!policy.canDelete) {
                               return;
                             }
 
@@ -783,7 +802,7 @@ export default function StatusesPage() {
   py-2
   text-sm
   font-semibold
-  ${isLockedStartStatus
+  ${!policy.canDelete
                               ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-400"
                               : "border-red-300 bg-red-50 text-red-700 hover:bg-red-100"
                             }

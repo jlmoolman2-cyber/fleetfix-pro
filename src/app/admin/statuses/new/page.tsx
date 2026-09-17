@@ -23,6 +23,7 @@ import {
 import {
   COMPANY_ID,
 } from "@/lib/company";
+import { validateCustomStatusName } from "@/lib/jobStatusAdmin";
 
 import {
   useRouter,
@@ -66,10 +67,9 @@ export default function NewStatusPage() {
   const [statusName, setStatusName] =
     useState("");
 
-  const isJobBookedStatus = statusName
-    .replace(/[^\w\s]/gi, "")
-    .trim()
-    .toLowerCase() === "job booked";
+  const statusNameValidation = validateCustomStatusName(statusName);
+  const isJobBookedStatus = !statusNameValidation.valid &&
+    statusNameValidation.key === "job_booked";
 
   const [selectedColor, setSelectedColor] =
     useState("bg-blue-500");
@@ -249,6 +249,12 @@ export default function NewStatusPage() {
                     "Please enter a status name"
                   );
 
+                  return;
+                }
+
+                const customNameValidation = validateCustomStatusName(statusName);
+                if (!customNameValidation.valid) {
+                  alert("This status name is reserved for a system status. Choose a different custom status name.");
                   return;
                 }
 

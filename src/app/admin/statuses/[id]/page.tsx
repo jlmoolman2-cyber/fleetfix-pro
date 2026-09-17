@@ -22,6 +22,7 @@ import {
 import {
   COMPANY_ID,
 } from "@/lib/company";
+import { adminStatusPolicy, validateCustomStatusName } from "@/lib/jobStatusAdmin";
 
 import {
   useParams,
@@ -107,6 +108,8 @@ export default function StatusEditPage() {
   const [availableFields, setAvailableFields] = useState<any[]>([]);
   const [photoAlbums, setPhotoAlbums] = useState<any[]>([]);
   const [workflowStatuses, setWorkflowStatuses] = useState<any[]>([]);
+  const [allStatuses, setAllStatuses] = useState<any[]>([]);
+  const [statusesLoaded, setStatusesLoaded] = useState(false);
   const [nextStatusId, setNextStatusId] = useState("");
   const [requiredPhotoAlbumId, setRequiredPhotoAlbumId] = useState("");
   const [requiredPhotoCategoryIds, setRequiredPhotoCategoryIds] = useState<string[]>([]);
@@ -249,10 +252,14 @@ export default function StatusEditPage() {
 
   useEffect(() => onSnapshot(
     collection(clientDb, "companies", COMPANY_ID, "statuses"),
-    (snapshot) => setWorkflowStatuses(snapshot.docs
-      .map((entry) => ({ id: entry.id, ...entry.data() } as any))
-      .filter((entry: any) => entry.active !== false)
-      .sort((left: any, right: any) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0)))
+    (snapshot) => {
+      const completeStatuses = snapshot.docs
+        .map((entry) => ({ id: entry.id, ...entry.data() } as any))
+        .sort((left: any, right: any) => Number(left.sortOrder || 0) - Number(right.sortOrder || 0));
+      setAllStatuses(completeStatuses);
+      setWorkflowStatuses(completeStatuses.filter((entry: any) => entry.active !== false));
+      setStatusesLoaded(true);
+    }
   ), []);
 
   useEffect(() => {
@@ -337,17 +344,13 @@ export default function StatusEditPage() {
   const [selectedColor, setSelectedColor] =
     useState("bg-red-500");
 
-  const isLockedStartStatus =
-
-    status?.name
-
-      ?.replace(/[^\w\s]/gi, "")
-
-      .trim()
-
-      .toLowerCase()
-
-    === "job booked";
+  const persistedStatus = status?.id
+    ? allStatuses.find((entry: any) => entry.id === status.id)
+    : undefined;
+  const policy = statusesLoaded && persistedStatus
+    ? adminStatusPolicy(allStatuses, persistedStatus)
+    : null;
+  const isLockedStartStatus = policy?.jobBookedWorkflowLocked === true;
 
   const [statusOptions, setStatusOptions] =
     useState({
@@ -559,6 +562,34 @@ export default function StatusEditPage() {
 
 
     if (!status) {
+      return;
+    }
+
+    if (!policy || !persistedStatus) {
+      alert("Status identity is still loading. Try again.");
+      return;
+    }
+
+    if (!policy.canRename && status.name !== persistedStatus.name) {
+      alert("This status name is protected and cannot be changed.");
+      return;
+    }
+
+    if (policy.canRename) {
+      const customNameValidation = validateCustomStatusName(status.name);
+      if (!customNameValidation.valid) {
+        alert("This status name is reserved for a system status. Choose a different custom status name.");
+        return;
+      }
+    }
+
+    const wasActive = persistedStatus.active !== false;
+    if (wasActive && statusOptions.active === false && !policy.canDisable) {
+      alert("This protected status cannot be disabled.");
+      return;
+    }
+    if (!wasActive && statusOptions.active === true && !policy.canEnable) {
+      alert("This protected status cannot be enabled.");
       return;
     }
 
@@ -804,6 +835,16 @@ export default function StatusEditPage() {
                 {status?.name}
 
               </h1>
+              {policy && policy.state !== "CUSTOM" && (
+                <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${
+                  policy.state === "AMBIGUOUS" || policy.state === "INVALID"
+                    ? "bg-red-100 text-red-700"
+                    : "bg-blue-100 text-blue-700"
+                }`}>
+                  {policy.state === "LEGACY_SYSTEM" ? "Legacy System" : policy.state}
+                  {policy.canonicalLabel ? ` · ${policy.canonicalLabel}` : ""}
+                </span>
+              )}
 
             </div>
 
@@ -904,6 +945,8 @@ export default function StatusEditPage() {
 
                     value={status?.name || ""}
 
+                    disabled={!policy?.canRename}
+
                     onChange={(e) =>
 
                       setStatus({
@@ -925,8 +968,18 @@ export default function StatusEditPage() {
                       text-sm
                       outline-none
                       focus:border-blue-500
+                      disabled:cursor-not-allowed
+                      disabled:bg-gray-100
+                      disabled:text-gray-500
                     "
                   />
+                  {policy && !policy.canRename && (
+                    <p className="mt-2 text-xs font-semibold text-gray-500">
+                      {policy.state === "AMBIGUOUS" || policy.state === "INVALID"
+                        ? "Identity is unresolved, so renaming is blocked for safety."
+                        : "System status names are protected."}
+                    </p>
+                  )}
 
                 </div>
 
@@ -1366,7 +1419,17 @@ export default function StatusEditPage() {
                     )}
 
                     <button
+                      disabled={item.key === "active" && (
+                        !policy || (statusOptions.active ? !policy.canDisable : !policy.canEnable)
+                      )}
                       onClick={() => {
+
+                        if (
+                          item.key === "active" &&
+                          (!policy || (statusOptions.active ? !policy.canDisable : !policy.canEnable))
+                        ) {
+                          return;
+                        }
 
                         if (
                           isLockedStartStatus &&
@@ -1402,7 +1465,9 @@ export default function StatusEditPage() {
     rounded-full
     transition
 
-    ${isLockedStartStatus
+    ${item.key === "active" && statusOptions.active && policy?.canDisable === false
+                          ? "cursor-not-allowed bg-gray-300"
+                          : isLockedStartStatus
                           ? "bg-gray-300"
                           : statusOptions[
                             item.key as keyof typeof statusOptions
