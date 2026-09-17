@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
+import { arrayUnion, collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { useRouter } from "next/navigation";
 
@@ -13,6 +13,7 @@ import { COMPANY_ID } from "@/lib/company";
 import { Job } from "@/types/job";
 import { hasPrivilegedRole } from "@/lib/accessControl";
 import { recalculateActiveJobQueue } from "@/lib/jobQueue";
+import { selectLifecycleStartStatus } from "@/lib/jobStatusLifecycle";
 
 type LifecycleMode = "closed" | "archived";
 
@@ -141,13 +142,15 @@ export default function JobLifecyclePage({ mode }: { mode: LifecycleMode }) {
 
   async function restoreAndOpen(jobId: string) {
     if (!isAdmin) return;
-    const startStatus = statuses.find((status) => status.startStatus === true && status.active !== false);
-    if (!startStatus) {
-      alert("Configure an active Start Status before restoring an archived job.");
+    const startSelection = selectLifecycleStartStatus(statuses);
+    if (startSelection.kind !== "selected") {
+      alert("The company job start status configuration requires correction before this job can be restored.");
       return;
     }
     try {
       setRestoringId(jobId);
+      const currentUser = getAuth().currentUser;
+      const restoredAt = new Date().toISOString();
       await updateDoc(doc(clientDb, "companies", COMPANY_ID, "jobs", jobId), {
         archived: false,
         archivedAt: null,
@@ -156,8 +159,18 @@ export default function JobLifecyclePage({ mode }: { mode: LifecycleMode }) {
         isCompleted: false,
         completedAt: null,
         reopenedAt: serverTimestamp(),
-        status: startStatus.name,
-        statusId: startStatus.id,
+        status: startSelection.statusName,
+        statusId: startSelection.statusId,
+        statusHistory: arrayUnion({
+          id: crypto.randomUUID(),
+          statusId: startSelection.statusId,
+          statusName: startSelection.statusName,
+          enteredAt: restoredAt,
+          createdAt: restoredAt,
+          updatedAt: restoredAt,
+          updatedById: currentUser?.uid || "",
+          updatedByName: currentUser?.displayName || currentUser?.email || "System",
+        }),
         updatedAt: serverTimestamp(),
       });
       await recalculateActiveJobQueue();

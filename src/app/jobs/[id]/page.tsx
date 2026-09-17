@@ -37,6 +37,7 @@ import {
   runtimeStatusIsOnRoute,
   runtimeStatusIsStartWork,
 } from "@/lib/jobStatusRuntime";
+import { selectContextualReopenStatus } from "@/lib/jobStatusLifecycle";
 
 import JobStatusSelect from "@/components/jobs/JobStatusSelect";
 import { useRouter } from "next/navigation";
@@ -132,6 +133,14 @@ export default function JobDetail({
 
   function statusIsJobComplete(value: any) {
     return statusContextLoaded && runtimeStatusIs(runtimeStatusInput(value), "job_complete");
+  }
+
+  function contextualReopenStatus() {
+    if (!statusContextLoaded) return undefined;
+    const selection = selectContextualReopenStatus(allStatuses);
+    return selection.kind === "selected"
+      ? allStatuses.find((status: any) => status.id === selection.statusId)
+      : undefined;
   }
 
   const [saving, setSaving] =
@@ -2955,9 +2964,7 @@ export default function JobDetail({
   }
 
   async function reopenJob() {
-    const reopenedStatus = statuses.find((status: any) =>
-      String(status.name || "").replace(/[^a-z0-9]/gi, "").toLowerCase() === "reopened"
-    );
+    const reopenedStatus = contextualReopenStatus();
     const reason = cancellationReasons.find((item) => item.id === selectedReopenReasonId);
     const reasonValue = reopenReasonValue.trim();
     if (!reopenedStatus) {
@@ -7098,9 +7105,7 @@ justify-center
       })()}
 
       {showReopenModal && (() => {
-        const reopenedStatus = statuses.find((status: any) =>
-          String(status.name || "").replace(/[^a-z0-9]/gi, "").toLowerCase() === "reopened"
-        );
+        const reopenedStatus = contextualReopenStatus();
         const compatibleReasons = cancellationReasons.filter((reason) => {
           const linked = String(reason.linkedStatus || "").trim().toLowerCase();
           const ids = Array.isArray(reason.linkedStatusIds) ? reason.linkedStatusIds.map(String) : [];

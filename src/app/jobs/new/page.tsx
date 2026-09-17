@@ -32,6 +32,7 @@ import {
 } from "@/lib/company";
 import { googleMapsLinkFromCoordinates, resolveGoogleMapsCoordinates } from "@/lib/googleMapsCoordinates";
 import { recalculateActiveJobQueue } from "@/lib/jobQueue";
+import { selectLifecycleStartStatus } from "@/lib/jobStatusLifecycle";
 import { effectivePermissions } from "@/lib/permissions";
 import UserAvatar from "@/components/shared/UserAvatar";
 
@@ -583,14 +584,17 @@ export default function AddJobPage() {
 
   async function loadStartStatusFields() {
     const snap = await getDocs(collection(clientDb, "companies", COMPANY_ID, "statuses"));
-    const statusDocs = snap.docs.map((statusDoc) => ({ id: statusDoc.id, ...statusDoc.data() } as any));
-    const booked = statusDocs.find((status) => status.startStatus === true) ||
-      statusDocs.find((status) => String(status.name || "").trim().toLowerCase() === "job booked");
+    const statusDocs = snap.docs.map((statusDoc) => ({ ...statusDoc.data(), id: statusDoc.id } as any));
+    const startSelection = selectLifecycleStartStatus(statusDocs);
+    const booked = startSelection.kind === "selected"
+      ? statusDocs.find((status) => status.id === startSelection.statusId)
+      : null;
     const setup = statusDocs.find((status) => String(status.name || "").trim().toLowerCase() === "setup");
+
+    setSetupStatus(setup || null);
 
     if (booked) {
       setBookedStatus(booked);
-      setSetupStatus(setup || null);
 
 
       setForm((prev: any) => ({
@@ -610,6 +614,14 @@ export default function AddJobPage() {
         booked.fields || []
       );
 
+    } else {
+      setBookedStatus(null);
+      setStatusFields([]);
+      setForm((prev: any) => ({
+        ...prev,
+        status: "",
+        statusId: "",
+      }));
     }
 
   }
@@ -1173,6 +1185,11 @@ export default function AddJobPage() {
         setSaving(false);
         return;
       }
+      if (!externalSupplier && !bookedStatus) {
+        alert("The company job start status configuration requires correction before a job can be created.");
+        setSaving(false);
+        return;
+      }
 
       const requestedBookingDate = advancedBooking ? new Date(bookingDateTime) : new Date();
       const requestedDispatchDate = new Date(estimatedDispatchTime);
@@ -1468,8 +1485,8 @@ export default function AddJobPage() {
           bookingAt: Timestamp.fromDate(requestedBookingDate),
           dateBooked: requestedBookingDate.toISOString(),
           isAdvancedBooking: advancedBooking,
-          bookedStatusId: bookedStatus?.id || form.statusId,
-          bookedStatusName: bookedStatus?.name || form.status || "Job Booked",
+          bookedStatusId: bookedStatus?.id || "",
+          bookedStatusName: bookedStatus?.name || "",
 
           createdById: getAuth().currentUser?.uid || "",
           createdByName: getAuth().currentUser?.displayName || getAuth().currentUser?.email || "System",

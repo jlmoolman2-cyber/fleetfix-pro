@@ -4,13 +4,17 @@ import { useEffect } from "react";
 import { collection, doc, onSnapshot, query, runTransaction, serverTimestamp, where } from "firebase/firestore";
 import { clientDb } from "@/lib/firebaseClient";
 import { COMPANY_ID } from "@/lib/company";
+import { selectAdvancedBookingTarget } from "@/lib/jobStatusLifecycle";
 
 export default function AdvancedBookingActivator() {
   useEffect(() => {
     const processing = new Set<string>();
     let pendingDocuments: any[] = [];
+    let statusDocuments: any[] = [];
+    let statusesLoaded = false;
 
     const activateDueBookings = () => {
+      if (!statusesLoaded) return;
       pendingDocuments.forEach((jobDocument) => {
         const job = jobDocument.data();
         const bookingDate = job.bookingAt?.toDate?.() || new Date(job.bookingAt || job.dateBooked || 0);
@@ -26,8 +30,14 @@ export default function AdvancedBookingActivator() {
           const dueDate = freshJob.bookingAt?.toDate?.() || new Date(freshJob.bookingAt || freshJob.dateBooked || 0);
           if (freshJob.isAdvancedBooking !== true || Number.isNaN(dueDate.getTime()) || dueDate.getTime() > Date.now()) return;
 
-          const statusName = freshJob.bookedStatusName || "Job Booked";
-          const statusId = freshJob.bookedStatusId || "";
+          const target = selectAdvancedBookingTarget(statusDocuments, {
+            statusId: freshJob.bookedStatusId,
+            statusName: freshJob.bookedStatusName,
+          });
+          if (target.kind !== "selected") {
+            throw new Error("Advanced booking has no safe active start status target.");
+          }
+          const { statusId, statusName } = target;
           const activatedAt = new Date().toISOString();
           transaction.update(jobRef, {
             status: statusName,
@@ -55,18 +65,30 @@ export default function AdvancedBookingActivator() {
       });
     };
 
-    const unsubscribe = onSnapshot(
+    const unsubscribeJobs = onSnapshot(
       query(collection(clientDb, "companies", COMPANY_ID, "jobs"), where("isAdvancedBooking", "==", true)),
       (snapshot) => {
         pendingDocuments = snapshot.docs;
         activateDueBookings();
       }
     );
+    const unsubscribeStatuses = onSnapshot(
+      collection(clientDb, "companies", COMPANY_ID, "statuses"),
+      (snapshot) => {
+        statusDocuments = snapshot.docs.map((statusDocument) => ({
+          ...statusDocument.data(),
+          id: statusDocument.id,
+        }));
+        statusesLoaded = true;
+        activateDueBookings();
+      },
+    );
     const interval = window.setInterval(activateDueBookings, 15_000);
 
     return () => {
       window.clearInterval(interval);
-      unsubscribe();
+      unsubscribeJobs();
+      unsubscribeStatuses();
     };
   }, []);
 
