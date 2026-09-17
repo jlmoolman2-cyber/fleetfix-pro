@@ -21,6 +21,7 @@ import {
 
 import PageHeader from "@/app/components/PageHeader";
 import UserAvatar, { userDisplayName } from "@/components/shared/UserAvatar";
+import { invoicePaymentStatus, invoicePaymentStatusLabel } from "@/lib/invoicePaymentStatus";
 
 interface PurchaseOrder {
 
@@ -51,7 +52,7 @@ interface PurchaseOrder {
 }
 
 type DocumentType = "purchase_order" | "quote" | "invoice" | "query";
-type ColumnKey = "number" | "party" | "reference" | "status" | "total" | "job" | "user" | "created";
+type ColumnKey = "number" | "party" | "reference" | "status" | "paymentStatus" | "total" | "job" | "user" | "created";
 
 const documentConfig: Record<DocumentType, { title: string; singular: string; code: string; collectionName: string; addHref: string }> = {
   purchase_order: { title: "Purchases", singular: "Purchase Order", code: "PO", collectionName: "purchase_orders", addHref: "/purchase-orders" },
@@ -84,7 +85,7 @@ export default function PurchaseOrderListPage({
 
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const [columnOrder, setColumnOrder] = useState<ColumnKey[]>([
-    "number", "party", "reference", "status", "total", "job", "user", "created",
+    "number", "party", "reference", "status", ...(documentType === "invoice" ? ["paymentStatus" as const] : []), "total", "job", "user", "created",
   ]);
   const [sort, setSort] = useState<{ key: ColumnKey; direction: "asc" | "desc" }>({ key: "created", direction: "desc" });
   const [columnWidths, setColumnWidths] = useState<Partial<Record<ColumnKey, number>>>({});
@@ -102,6 +103,7 @@ export default function PurchaseOrderListPage({
     party: documentType === "purchase_order" ? "Supplier" : "Customer",
     reference: "Reference",
     status: "Status",
+    paymentStatus: "Payment Status",
     total: "Total Incl",
     job: "Linked Job",
     user: "User",
@@ -120,6 +122,7 @@ export default function PurchaseOrderListPage({
             ? "Open - Partially Received"
             : po.status || "-"
         : po.status || "-");
+      case "paymentStatus": return invoicePaymentStatusLabel(invoicePaymentStatus(po));
       case "total": return `R ${po.grandTotal.toFixed(2)}`;
       case "job": return po.jobNumber || "-";
       case "user": {
@@ -137,6 +140,7 @@ export default function PurchaseOrderListPage({
     if (column === "party") return documentType === "purchase_order" ? po.supplier || "" : (po as any).customerName || po.supplier || "";
     if (column === "reference") return po.referenceNumber || "";
     if (column === "status") return po.status || "";
+    if (column === "paymentStatus") return invoicePaymentStatus(po);
     if (column === "total") return po.grandTotal || 0;
     if (column === "job") return po.jobNumber || "";
     if (column === "user") return (po as any).lastChangedByName || (po as any).createdByName || po.userName || po.employee || "";
@@ -185,10 +189,10 @@ export default function PurchaseOrderListPage({
             const normalizedStatus = documentType === "query"
               ? rawStatus
               : data.fullyReceived === true || data.fullyInvoiced === true || data.received === true || rawStatus === "closed"
-              ? "closed"
-              : data.approved === true || rawStatus === "open" || rawStatus === "approved"
-                ? "open"
-                : "draft";
+                ? "closed"
+                : data.approved === true || rawStatus === "open" || rawStatus === "approved"
+                  ? "open"
+                  : "draft";
 
             return {
 
