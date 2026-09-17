@@ -31,6 +31,12 @@ import { hasPrivilegedRole } from "@/lib/accessControl";
 import { recalculateActiveJobQueue } from "@/lib/jobQueue";
 import { effectivePermissions, permissionsForRole } from "@/lib/permissions";
 import { calculateCompanyRateTotals, CompanyRateLine } from "@/lib/companyRates";
+import {
+  runtimeStatusIs,
+  runtimeStatusIsContextualArrival,
+  runtimeStatusIsOnRoute,
+  runtimeStatusIsStartWork,
+} from "@/lib/jobStatusRuntime";
 
 import JobStatusSelect from "@/components/jobs/JobStatusSelect";
 import { useRouter } from "next/navigation";
@@ -69,14 +75,6 @@ function displayQueueNumber(value: unknown): string {
   return Number.isFinite(queueNumber) && queueNumber > 0 ? String(queueNumber) : "";
 }
 
-function statusIsOnRoute(value: unknown) {
-  return /on\s*route|en\s*route|travell?ing|dispatched/i.test(String(value || ""));
-}
-
-function statusIsOnSite(value: unknown) {
-  return /on\s*site|arriv|start\s*work|work\s*(?:in\s*)?progress|working|repair\s*(?:in\s*)?progress/i.test(String(value || ""));
-}
-
 export default function JobDetail({
   params,
 }: JobDetailsProps) {
@@ -93,6 +91,8 @@ export default function JobDetail({
     statuses,
     setStatuses,
   ] = useState<any[]>([]);
+  const [allStatuses, setAllStatuses] = useState<any[]>([]);
+  const [statusContextLoaded, setStatusContextLoaded] = useState(false);
 
   const { id } = use(params);
 
@@ -107,6 +107,32 @@ export default function JobDetail({
   const [companyRates, setCompanyRates] = useState<CompanyRateLine[]>([]);
   const [rateTimers, setRateTimers] = useState<any[]>([]);
   const [selectedCustomerContact, setSelectedCustomerContact] = useState<any>(null);
+
+  function runtimeStatusInput(value: any) {
+    const record = value && typeof value === "object" ? value : { status: value };
+    return {
+      statuses: allStatuses,
+      statusId: record.statusId ?? (record.name !== undefined ? record.id : undefined),
+      status: record.status,
+      statusName: record.statusName || record.name,
+    };
+  }
+
+  function statusIsOnRoute(value: any) {
+    return statusContextLoaded && runtimeStatusIsOnRoute(runtimeStatusInput(value));
+  }
+
+  function statusStartsWork(value: any) {
+    if (!statusContextLoaded) return false;
+    const record = value && typeof value === "object" ? value : { status: value };
+    const displayName = record.statusName || record.name || record.status;
+    return runtimeStatusIsStartWork(runtimeStatusInput(value)) ||
+      runtimeStatusIsContextualArrival(displayName);
+  }
+
+  function statusIsJobComplete(value: any) {
+    return statusContextLoaded && runtimeStatusIs(runtimeStatusInput(value), "job_complete");
+  }
 
   const [saving, setSaving] =
     useState(false);
@@ -532,19 +558,17 @@ export default function JobDetail({
         (snapshot) => {
 
 
-          const list =
+          const completeStatuses =
             snapshot.docs
 
               .map((doc) => ({
+                ...doc.data(),
 
                 id: doc.id,
 
-                ...doc.data(),
+              }));
 
-              }))
-
-
-              .filter(
+          const list = completeStatuses.filter(
                 (status: any) =>
                   status.active !== false
               )
@@ -559,8 +583,9 @@ export default function JobDetail({
 
               );
 
-
+          setAllStatuses(completeStatuses);
           setStatuses(list);
+          setStatusContextLoaded(true);
 
 
         }
@@ -1944,11 +1969,11 @@ export default function JobDetail({
           estimatedDispatchAt: null,
         } : {}),
 
-        ...(statusIsOnSite(statusConfig.name) ? {
+        ...(statusStartsWork(statusConfig) ? {
           workStartedAt: serverTimestamp(),
           estimatedArrivalAt: null,
           estimatedDispatchAt: null,
-        } : statusIsOnRoute(statusConfig.name) ? { workStartedAt: null } : {}),
+        } : statusIsOnRoute(statusConfig) ? { workStartedAt: null } : {}),
 
         archived: false,
         archivedAt: null,
@@ -1994,9 +2019,9 @@ export default function JobDetail({
       closedAt: statusConfig.closeJob === true ? new Date() : null,
       isCompleted: statusConfig.jobCompleted === true ? true : job.isCompleted === true,
       completedAt: statusConfig.jobCompleted === true ? new Date() : job.completedAt || null,
-      workStartedAt: statusConfig.jobCompleted === true ? null : statusIsOnSite(statusConfig.name) ? new Date() : statusIsOnRoute(statusConfig.name) ? null : job.workStartedAt || null,
-      estimatedArrivalAt: statusConfig.jobCompleted === true || statusIsOnSite(statusConfig.name) ? null : job.estimatedArrivalAt,
-      estimatedDispatchAt: statusConfig.jobCompleted === true || statusIsOnSite(statusConfig.name) ? null : job.estimatedDispatchAt,
+      workStartedAt: statusConfig.jobCompleted === true ? null : statusStartsWork(statusConfig) ? new Date() : statusIsOnRoute(statusConfig) ? null : job.workStartedAt || null,
+      estimatedArrivalAt: statusConfig.jobCompleted === true || statusStartsWork(statusConfig) ? null : job.estimatedArrivalAt,
+      estimatedDispatchAt: statusConfig.jobCompleted === true || statusStartsWork(statusConfig) ? null : job.estimatedDispatchAt,
       archived: false,
       noPartsUsed: statusConfig.clearNoPartsUsed === true ? false : job.noPartsUsed === true,
 
@@ -4264,16 +4289,17 @@ export default function JobDetail({
   const configuredJobStatus = statuses.find(
     (status: any) => status.id === job.statusId || status.name === job.status
   );
-  const onRoute = statusIsOnRoute(job.status);
+  const onRoute = statusIsOnRoute(job);
   const workHasStarted = !onRoute && (
-    statusIsOnSite(job.status) || Boolean(job.workStartedAt)
+    statusStartsWork(job) || Boolean(job.workStartedAt)
   );
   const jobFinished =
     job.isCompleted === true ||
     job.isClosed === true ||
     configuredJobStatus?.jobCompleted === true ||
     configuredJobStatus?.closeJob === true ||
-    /completed|closed/i.test(String(job.status || ""));
+    statusIsJobComplete(job) ||
+    /closed/i.test(String(job.status || ""));
   const etaDisplay = jobFinished
     ? "Job completed"
     : job.edtPaused === true || /on\s*hold|hold/.test(String(job.status || "").toLowerCase())
@@ -7470,11 +7496,11 @@ w-[500px]
                       estimatedDispatchAt: null,
                     } : {}),
 
-                    ...(statusIsOnSite(pendingStatus.name) ? {
+                    ...(statusStartsWork(pendingStatus) ? {
                       workStartedAt: serverTimestamp(),
                       estimatedArrivalAt: null,
                       estimatedDispatchAt: null,
-                    } : statusIsOnRoute(pendingStatus.name) ? { workStartedAt: null } : {}),
+                    } : statusIsOnRoute(pendingStatus) ? { workStartedAt: null } : {}),
 
                     archived: false,
                     archivedAt: null,
@@ -7565,9 +7591,9 @@ w-[500px]
                     closedAt: pendingStatus.closeJob === true ? new Date() : null,
                     isCompleted: pendingStatus.jobCompleted === true ? true : job.isCompleted === true,
                     completedAt: pendingStatus.jobCompleted === true ? new Date() : job.completedAt || null,
-                    workStartedAt: pendingStatus.jobCompleted === true ? null : statusIsOnSite(pendingStatus.name) ? new Date() : statusIsOnRoute(pendingStatus.name) ? null : job.workStartedAt || null,
-                    estimatedArrivalAt: pendingStatus.jobCompleted === true || statusIsOnSite(pendingStatus.name) ? null : job.estimatedArrivalAt,
-                    estimatedDispatchAt: pendingStatus.jobCompleted === true || statusIsOnSite(pendingStatus.name) ? null : job.estimatedDispatchAt,
+                    workStartedAt: pendingStatus.jobCompleted === true ? null : statusStartsWork(pendingStatus) ? new Date() : statusIsOnRoute(pendingStatus) ? null : job.workStartedAt || null,
+                    estimatedArrivalAt: pendingStatus.jobCompleted === true || statusStartsWork(pendingStatus) ? null : job.estimatedArrivalAt,
+                    estimatedDispatchAt: pendingStatus.jobCompleted === true || statusStartsWork(pendingStatus) ? null : job.estimatedDispatchAt,
                     archived: false,
                     noPartsUsed: pendingStatus.clearNoPartsUsed === true ? false : job.noPartsUsed === true,
 

@@ -9,6 +9,12 @@ import {
 
 import { COMPANY_ID } from "@/lib/company";
 import { clientDb } from "@/lib/firebaseClient";
+import { runtimeStatusIsOnRoute } from "@/lib/jobStatusRuntime";
+import type { JobStatusDocument } from "@/lib/jobStatusContract";
+
+interface JobQueueStatusContext {
+  statuses: readonly JobStatusDocument[];
+}
 
 function queueOrder(job: any): number {
   const queueNumber = Number(String(job.queueNumber ?? "").replace(/\D/g, ""));
@@ -41,19 +47,34 @@ function firestoreDate(value: any): Date | null {
   return date instanceof Date && !Number.isNaN(date.getTime()) ? date : null;
 }
 
-function jobIsOnRoute(job: any) {
-  return /on\s*route|en\s*route|travell?ing|dispatched/i.test(String(job.status || ""));
+function jobIsOnRoute(job: any, context: JobQueueStatusContext) {
+  return runtimeStatusIsOnRoute({
+    statuses: context.statuses,
+    statusId: job.statusId,
+    status: job.status,
+    statusName: job.statusName,
+  });
 }
 
-function liveQueuePriority(job: any): number {
-  if (job.workStartedAt != null && !jobIsOnRoute(job)) return 0;
-  if (jobIsOnRoute(job)) return 1;
+function liveQueuePriority(job: any, context: JobQueueStatusContext): number {
+  if (job.workStartedAt != null && !jobIsOnRoute(job, context)) return 0;
+  if (jobIsOnRoute(job, context)) return 1;
   return 2;
 }
 
 export async function recalculateActiveJobQueue(): Promise<void> {
   const jobsCollection = collection(clientDb, "companies", COMPANY_ID, "jobs");
-  const snapshot = await getDocs(jobsCollection);
+  const statusesCollection = collection(clientDb, "companies", COMPANY_ID, "statuses");
+  const [snapshot, statusSnapshot] = await Promise.all([
+    getDocs(jobsCollection),
+    getDocs(statusesCollection),
+  ]);
+  const statusContext: JobQueueStatusContext = {
+    statuses: statusSnapshot.docs.map((statusDocument) => ({
+      ...statusDocument.data(),
+      id: statusDocument.id,
+    })),
+  };
   const jobs = snapshot.docs
     .map((jobDocument) => ({ id: jobDocument.id, ...jobDocument.data() } as any))
     .sort((left, right) =>
@@ -67,7 +88,7 @@ export async function recalculateActiveJobQueue(): Promise<void> {
       job.isClosed !== true && job.isCompleted !== true && job.archived !== true
     )
     .sort((left, right) =>
-      liveQueuePriority(left) - liveQueuePriority(right) ||
+      liveQueuePriority(left, statusContext) - liveQueuePriority(right, statusContext) ||
       queueOrder(left) - queueOrder(right) ||
       dateOrder(left) - dateOrder(right) ||
       String(left.id).localeCompare(String(right.id))
@@ -105,7 +126,7 @@ export async function recalculateActiveJobQueue(): Promise<void> {
       const etaPaused = job.edtPaused === true ||
         /on\s*hold|hold/.test(String(job.status || "").toLowerCase()) ||
         job.externalServiceProvider === true ||
-        (job.workStartedAt != null && !jobIsOnRoute(job));
+        (job.workStartedAt != null && !jobIsOnRoute(job, statusContext));
       let estimatedArrivalAt = null;
 
       if (!etaPaused) {
@@ -129,7 +150,7 @@ export async function recalculateActiveJobQueue(): Promise<void> {
         const availableAfterJob = jobStartsAt +
           (roundTripTravelMinutes + repairMinutes) * 60_000;
         userKeys.forEach((userKey) => technicianAvailableAt.set(userKey, availableAfterJob));
-      } else if (job.workStartedAt != null && !jobIsOnRoute(job)) {
+      } else if (job.workStartedAt != null && !jobIsOnRoute(job, statusContext)) {
         // The technician has already arrived, so this job has no ETA. It must
         // still occupy the technician's queue until repair and return travel
         // are expected to finish.
