@@ -21,7 +21,7 @@ export default function StockSlipDocument({ type, record, items, children }: { t
     <article className="stock-slip-paper border border-black p-[3mm] shadow-lg">
       <header className="border-b-2 border-black pb-2 text-center">
         {settings.showLogo !== false && company.logo && <img src={company.logo} alt={company.companyName || "Company logo"} className="mx-auto mb-1 max-h-12 max-w-[50mm] object-contain" />}
-        <div className="text-sm font-black">{company.companyName || "FleetFix"}</div>
+        <div className="text-sm font-black">{company.companyName || "JobTorq"}</div>
         {settings.showCompanyAddress !== false && company.physicalAddress && <div className="whitespace-pre-line text-[9px]">{company.physicalAddress}</div>}
         {settings.showCompanyContact !== false && <div className="text-[9px]">{[company.telephone, company.email].filter(Boolean).join(" · ")}</div>}
       </header>
@@ -29,7 +29,7 @@ export default function StockSlipDocument({ type, record, items, children }: { t
       <section className="border-y border-black py-1.5 text-[9px]">
         {settings.showJobNumber !== false && <div><b>Job:</b> {record.jobNumber || record.jobId}</div>}
         {settings.showCustomer !== false && record.customerName && <div><b>Customer:</b> {record.customerName}</div>}
-        {settings.showRequestedBy !== false && <div><b>Created by:</b> {record.requestedByName || "FleetFix User"}</div>}
+        {settings.showRequestedBy !== false && <div><b>Created by:</b> {record.requestedByName || "JobTorq User"}</div>}
       </section>
       <table className="mt-2 w-full table-fixed border-collapse text-[9px]"><thead><tr className="border-y border-black"><th className="w-[24%] py-1 text-left">Part</th><th className="w-[43%] text-left">Description</th><th className="w-[11%] text-right">Req</th><th className="w-[11%] text-right">Pick</th><th className="w-[11%] text-right">Issue</th></tr></thead><tbody>{items.map((item, index) => <tr key={item.materialId || index} className="border-b border-dotted border-gray-500 align-top"><td className="break-words py-1 font-bold">{item.partNumber || "—"}</td><td className="break-words py-1">{item.description || "—"}{item.serialNumber ? <div>S/N: {item.serialNumber}</div> : null}</td><td className="py-1 text-right">{item.requestedQty ?? item.returnQty ?? 0}</td><td className="py-1 text-right">{isRequest ? item.pickedQty ?? 0 : "—"}</td><td className="py-1 text-right">{isRequest ? item.issuedQty ?? 0 : item.receivedQty ?? 0}</td></tr>)}</tbody></table>
       {isRequest && record.quantityVariance && <div className="mt-2 border border-black p-2 text-[9px]"><div className="font-bold uppercase">Quantity variance reason</div><div className="mt-1 whitespace-pre-wrap">{record.quantityVarianceReason || "Not recorded"}</div></div>}

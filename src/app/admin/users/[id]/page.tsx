@@ -1038,7 +1038,7 @@ export default function EmployeeDetailsPage() {
                             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-gray-200 px-6 py-4">
                                 <div>
                                     <div className="text-xl font-black text-gray-900">Notifications User Can Receive</div>
-                                    <div className="mt-1 text-sm text-gray-500">Select which FleetFix notifications, alerts and communication events this user may receive.</div>
+                                    <div className="mt-1 text-sm text-gray-500">Select which JobTorq notifications, alerts and communication events this user may receive.</div>
                                 </div>
                                 <div className="flex gap-2">
                                     <button type="button" onClick={() => setNotificationPreferences(defaultNotificationPreferences())} className="rounded-xl bg-blue-50 px-5 py-3 text-sm font-black text-blue-700">Enable All</button>

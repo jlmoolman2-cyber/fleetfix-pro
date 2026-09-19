@@ -16,116 +16,136 @@ const defaultPalette: Palette = { primary: "#164e7a", primaryText: "#ffffff", la
 const wideJobCardFieldIds = new Set(["customerAddress", "gpsLink", "traveledFor", "statusHistory", "jobNotes", "labourSummary", "instructions", "reasons", "formSummary", "photoCaptions", "supplierInformation", "terms"]);
 
 const sections: Section[] = [
-  { id: "header", title: "Document Header", fields: [
-    { id: "companyLogo", label: "Company logo", customerDefault: true },
-    { id: "companyDetails", label: "Company name and contact details", customerDefault: true },
-    { id: "jobCardTitle", label: "Job card title", customerDefault: true },
-    { id: "jobNumber", label: "Job number", customerDefault: true },
-    { id: "jobStatus", label: "Current job status", customerDefault: true },
-    { id: "priority", label: "Job priority" },
-    { id: "createdAt", label: "Date and time created", customerDefault: true },
-    { id: "dateBooked", label: "Booking date and time", customerDefault: true },
-  ] },
-  { id: "customer", title: "Customer and Contact Details", fields: [
-    { id: "customerCode", label: "Customer code" },
-    { id: "customerName", label: "Customer name", customerDefault: true },
-    { id: "customerVatNumber", label: "Customer VAT number", customerDefault: true },
-    { id: "customerAddress", label: "Customer address", customerDefault: true },
-    { id: "contactName", label: "Contact name", customerDefault: true },
-    { id: "contactTelephone", label: "Contact telephone", customerDefault: true },
-    { id: "contactEmail", label: "Contact email", customerDefault: true },
-    { id: "driverName", label: "Driver name", customerDefault: true },
-    { id: "driverContact", label: "Driver contact number", customerDefault: true },
-    { id: "customerOrderNumber", label: "Customer Order Number", customerDefault: true },
-    { id: "referenceNumber", label: "Reference Number", customerDefault: true },
-    { id: "invoiceNumber", label: "Invoice Number", customerDefault: true },
-  ] },
-  { id: "job", title: "Job Details", fields: [
-    { id: "jobType", label: "Job type", customerDefault: true },
-    { id: "location", label: "Job location", customerDefault: true },
-    { id: "locationAddress", label: "Location address", customerDefault: true },
-    { id: "description", label: "Job description / reported fault", customerDefault: true },
-    { id: "previousJobNumber", label: "Previous Job Number" },
-    { id: "supplierInformation", label: "Supplier", customerDefault: true },
-    { id: "gpsLink", label: "Google Maps / GPS link" },
-    { id: "startKm", label: "Starting kilometre reading", customerDefault: true },
-    { id: "endKm", label: "Ending kilometre reading", customerDefault: true },
-    { id: "totalTravelling", label: "Total travelling distance", customerDefault: true, printOnly: true, description: "Sum of every completed End KM minus Start KM pair" },
-  ] },
-  { id: "vehicle", title: "Vehicle / Asset Details", fields: [
-    { id: "vehicleRegistration", label: "Registration number", customerDefault: true },
-    { id: "fleetNumber", label: "Fleet number", customerDefault: true },
-    { id: "vehicleMake", label: "Make", customerDefault: true },
-    { id: "vehicleModel", label: "Model", customerDefault: true },
-    { id: "vehicleType", label: "Vehicle type", customerDefault: true },
-    { id: "vinNumber", label: "VIN / chassis number", customerDefault: true },
-  ] },
-  { id: "work", title: "Work and Operational Information", fields: [
-    { id: "assignedUsers", label: "Assigned technicians / users", description: "Uses the users assigned to the job; Status can make assignment required", customerDefault: true },
-    { id: "assignedVehicle", label: "Assigned service vehicle" },
-    { id: "statusHistory", label: "Status history" },
-    { id: "tasks", label: "Print job tasks", customerDefault: true, printOnly: true },
-    { id: "timers", label: "Print job timers", printOnly: true },
-    { id: "labourSummary", label: "Labour summary", customerDefault: true },
-    { id: "materials", label: "Print booked materials", customerDefault: true, printOnly: true },
-    { id: "materialType", label: "Parts and services — Type column", customerDefault: true, printOnly: true },
-    { id: "materialCostPriceExcl", label: "Parts and services — Item cost price excl.", printOnly: true },
-    { id: "instructions", label: "Instructions issued" },
-  ] },
-  { id: "forms", title: "Forms, Photos and Attachments", fields: [
-    { id: "jobForms", label: "Completed job forms", customerDefault: true },
-    { id: "formSummary", label: "Job form answers / summary", customerDefault: true },
-    { id: "photoAlbum", label: "Job photo album", customerDefault: true },
-    { id: "photoCaptions", label: "Photo category and captions", customerDefault: true },
-    { id: "attachments", label: "Attachment list" },
-  ] },
-  { id: "financial", title: "Amounts and Internal Information", fields: [
-    { id: "jobCosting", label: "Job Summary / Costing panel" },
-    { id: "jobPricing", label: "Job Summary / Job Pricing panel" },
-    { id: "partsCost", label: "Internal parts cost" },
-    { id: "labourCost", label: "Internal labour cost" },
-    { id: "sellingAmounts", label: "Customer selling amounts", customerDefault: true },
-    { id: "taxSummary", label: "Tax / VAT summary", customerDefault: true },
-    { id: "totalAmount", label: "Total amount", customerDefault: true },
-    { id: "supplierInformation", label: "Supplier information" },
-  ] },
-  { id: "linkedDocuments", title: "Linked Documents", fields: [
-    { id: "linkedQuote", label: "Linked quotation numbers", customerDefault: true },
-    { id: "linkedPurchaseOrder", label: "Linked purchase order numbers", customerDefault: true },
-    { id: "linkedInvoice", label: "Linked invoice numbers", customerDefault: true },
-    { id: "linkedPartsRequisition", label: "Linked parts requisition numbers", customerDefault: true },
-    { id: "linkedPartsDerequisition", label: "Linked parts derequisition numbers", customerDefault: true },
-    { id: "jobSummary", label: "Print job status summary", printOnly: true },
-    { id: "internalComments", label: "Job notes / internal comments", printOnly: true },
-    { id: "statusReasonsAndNotes", label: "Status reasons and status notes", printOnly: true },
-  ] },
-  { id: "approval", title: "Approval, Terms and Signatures", fields: [
-    { id: "terms", label: "Job terms and conditions", customerDefault: true },
-    { id: "customerSignature", label: "Customer signature", customerDefault: true },
-    { id: "customerSignatory", label: "Customer signatory name", customerDefault: true },
-    { id: "technicianSignature", label: "Technician signature", customerDefault: true },
-    { id: "technicianName", label: "Technician name", customerDefault: true },
-    { id: "approvalDate", label: "Completion / approval date", customerDefault: true },
-    { id: "footer", label: "Document footer", customerDefault: true },
-    { id: "pageNumbers", label: "Page numbers", customerDefault: true },
-  ] },
-  { id: "custom", title: "Custom and Additional Job Fields", fields: [
-    { id: "traveledFor", label: "Traveled for / description" },
-    { id: "customtext1", label: "Customer custom text field 1" },
-    { id: "customtext2", label: "Customer custom text field 2" },
-    { id: "customtext3", label: "Customer custom text field 3" },
-    { id: "customtext4", label: "Customer custom text field 4" },
-    { id: "customfield1", label: "Job custom field 1" },
-    { id: "customfield2", label: "Job custom field 2" },
-    { id: "customfield3", label: "Job custom field 3" },
-    { id: "customfield4", label: "Job custom field 4" },
-    { id: "customfield5", label: "Job custom field 5" },
-    { id: "customfield6", label: "Job custom field 6" },
-    { id: "customfield7", label: "Job custom field 7" },
-    { id: "customfield8", label: "Job custom field 8" },
-    { id: "customfield9", label: "Job custom field 9" },
-    { id: "customfield10", label: "Job custom field 10" },
-  ] },
+  {
+    id: "header", title: "Document Header", fields: [
+      { id: "companyLogo", label: "Company logo", customerDefault: true },
+      { id: "companyDetails", label: "Company name and contact details", customerDefault: true },
+      { id: "jobCardTitle", label: "Job card title", customerDefault: true },
+      { id: "jobNumber", label: "Job number", customerDefault: true },
+      { id: "jobStatus", label: "Current job status", customerDefault: true },
+      { id: "priority", label: "Job priority" },
+      { id: "createdAt", label: "Date and time created", customerDefault: true },
+      { id: "dateBooked", label: "Booking date and time", customerDefault: true },
+    ]
+  },
+  {
+    id: "customer", title: "Customer and Contact Details", fields: [
+      { id: "customerCode", label: "Customer code" },
+      { id: "customerName", label: "Customer name", customerDefault: true },
+      { id: "customerVatNumber", label: "Customer VAT number", customerDefault: true },
+      { id: "customerAddress", label: "Customer address", customerDefault: true },
+      { id: "contactName", label: "Contact name", customerDefault: true },
+      { id: "contactTelephone", label: "Contact telephone", customerDefault: true },
+      { id: "contactEmail", label: "Contact email", customerDefault: true },
+      { id: "driverName", label: "Driver name", customerDefault: true },
+      { id: "driverContact", label: "Driver contact number", customerDefault: true },
+      { id: "customerOrderNumber", label: "Customer Order Number", customerDefault: true },
+      { id: "referenceNumber", label: "Reference Number", customerDefault: true },
+      { id: "invoiceNumber", label: "Invoice Number", customerDefault: true },
+    ]
+  },
+  {
+    id: "job", title: "Job Details", fields: [
+      { id: "jobType", label: "Job type", customerDefault: true },
+      { id: "location", label: "Job location", customerDefault: true },
+      { id: "locationAddress", label: "Location address", customerDefault: true },
+      { id: "description", label: "Job description / reported fault", customerDefault: true },
+      { id: "previousJobNumber", label: "Previous Job Number" },
+      { id: "supplierInformation", label: "Supplier", customerDefault: true },
+      { id: "gpsLink", label: "Google Maps / GPS link" },
+      { id: "startKm", label: "Starting kilometre reading", customerDefault: true },
+      { id: "endKm", label: "Ending kilometre reading", customerDefault: true },
+      { id: "totalTravelling", label: "Total travelling distance", customerDefault: true, printOnly: true, description: "Sum of every completed End KM minus Start KM pair" },
+    ]
+  },
+  {
+    id: "vehicle", title: "Vehicle / Asset Details", fields: [
+      { id: "vehicleRegistration", label: "Registration number", customerDefault: true },
+      { id: "fleetNumber", label: "Fleet number", customerDefault: true },
+      { id: "vehicleMake", label: "Make", customerDefault: true },
+      { id: "vehicleModel", label: "Model", customerDefault: true },
+      { id: "vehicleType", label: "Vehicle type", customerDefault: true },
+      { id: "vinNumber", label: "VIN / chassis number", customerDefault: true },
+    ]
+  },
+  {
+    id: "work", title: "Work and Operational Information", fields: [
+      { id: "assignedUsers", label: "Assigned technicians / users", description: "Uses the users assigned to the job; Status can make assignment required", customerDefault: true },
+      { id: "assignedVehicle", label: "Assigned service vehicle" },
+      { id: "statusHistory", label: "Status history" },
+      { id: "tasks", label: "Print job tasks", customerDefault: true, printOnly: true },
+      { id: "timers", label: "Print job timers", printOnly: true },
+      { id: "labourSummary", label: "Labour summary", customerDefault: true },
+      { id: "materials", label: "Print booked materials", customerDefault: true, printOnly: true },
+      { id: "materialType", label: "Parts and services — Type column", customerDefault: true, printOnly: true },
+      { id: "materialCostPriceExcl", label: "Parts and services — Item cost price excl.", printOnly: true },
+      { id: "instructions", label: "Instructions issued" },
+    ]
+  },
+  {
+    id: "forms", title: "Forms, Photos and Attachments", fields: [
+      { id: "jobForms", label: "Completed job forms", customerDefault: true },
+      { id: "formSummary", label: "Job form answers / summary", customerDefault: true },
+      { id: "photoAlbum", label: "Job photo album", customerDefault: true },
+      { id: "photoCaptions", label: "Photo category and captions", customerDefault: true },
+      { id: "attachments", label: "Attachment list" },
+    ]
+  },
+  {
+    id: "financial", title: "Amounts and Internal Information", fields: [
+      { id: "jobCosting", label: "Job Summary / Costing panel" },
+      { id: "jobPricing", label: "Job Summary / Job Pricing panel" },
+      { id: "partsCost", label: "Internal parts cost" },
+      { id: "labourCost", label: "Internal labour cost" },
+      { id: "sellingAmounts", label: "Customer selling amounts", customerDefault: true },
+      { id: "taxSummary", label: "Tax / VAT summary", customerDefault: true },
+      { id: "totalAmount", label: "Total amount", customerDefault: true },
+      { id: "supplierInformation", label: "Supplier information" },
+    ]
+  },
+  {
+    id: "linkedDocuments", title: "Linked Documents", fields: [
+      { id: "linkedQuote", label: "Linked quotation numbers", customerDefault: true },
+      { id: "linkedPurchaseOrder", label: "Linked purchase order numbers", customerDefault: true },
+      { id: "linkedInvoice", label: "Linked invoice numbers", customerDefault: true },
+      { id: "linkedPartsRequisition", label: "Linked parts requisition numbers", customerDefault: true },
+      { id: "linkedPartsDerequisition", label: "Linked parts derequisition numbers", customerDefault: true },
+      { id: "jobSummary", label: "Print job status summary", printOnly: true },
+      { id: "internalComments", label: "Job notes / internal comments", printOnly: true },
+      { id: "statusReasonsAndNotes", label: "Status reasons and status notes", printOnly: true },
+    ]
+  },
+  {
+    id: "approval", title: "Approval, Terms and Signatures", fields: [
+      { id: "terms", label: "Job terms and conditions", customerDefault: true },
+      { id: "customerSignature", label: "Customer signature", customerDefault: true },
+      { id: "customerSignatory", label: "Customer signatory name", customerDefault: true },
+      { id: "technicianSignature", label: "Technician signature", customerDefault: true },
+      { id: "technicianName", label: "Technician name", customerDefault: true },
+      { id: "approvalDate", label: "Completion / approval date", customerDefault: true },
+      { id: "footer", label: "Document footer", customerDefault: true },
+      { id: "pageNumbers", label: "Page numbers", customerDefault: true },
+    ]
+  },
+  {
+    id: "custom", title: "Custom and Additional Job Fields", fields: [
+      { id: "traveledFor", label: "Traveled for / description" },
+      { id: "customtext1", label: "Customer custom text field 1" },
+      { id: "customtext2", label: "Customer custom text field 2" },
+      { id: "customtext3", label: "Customer custom text field 3" },
+      { id: "customtext4", label: "Customer custom text field 4" },
+      { id: "customfield1", label: "Job custom field 1" },
+      { id: "customfield2", label: "Job custom field 2" },
+      { id: "customfield3", label: "Job custom field 3" },
+      { id: "customfield4", label: "Job custom field 4" },
+      { id: "customfield5", label: "Job custom field 5" },
+      { id: "customfield6", label: "Job custom field 6" },
+      { id: "customfield7", label: "Job custom field 7" },
+      { id: "customfield8", label: "Job custom field 8" },
+      { id: "customfield9", label: "Job custom field 9" },
+      { id: "customfield10", label: "Job custom field 10" },
+    ]
+  },
 ];
 
 const allFieldIds = Array.from(new Set(sections.flatMap((section) => section.fields.map((field) => field.id))));
@@ -320,7 +340,7 @@ export default function JobCardManagerPage() {
 }
 
 const previewValues: Record<string, string> = {
-  companyDetails: "FleetFix Professional Services · +27 11 555 0182 · service@fleetfix.co.za",
+  companyDetails: "JobTorq Professional Services · +27 11 555 0182 · service@fleetfix.co.za",
   jobCardTitle: "JOB CARD", jobNumber: "JOB-2026-00418", jobStatus: "Work in Progress", priority: "High",
   createdAt: "24 July 2026, 08:15", dateBooked: "24 July 2026, 09:00",
   customerCode: "CUS-00124", customerName: "Northern Logistics (Pty) Ltd", customerVatNumber: "4123456789",
@@ -349,10 +369,10 @@ const previewValues: Record<string, string> = {
   taxSummary: "VAT 15%: R 2,383.50", totalAmount: "R 18,273.50", linkedQuote: "Q-2026-0124", linkedInvoice: "INV-2026-0089",
   linkedPurchaseOrder: "PO-2026-0104",
   statusReasonsAndNotes: "On Hold · Awaiting customer approval",
-  supplierInformation: "Internal use only", terms: "Work completed is subject to FleetFix standard service terms and conditions.",
+  supplierInformation: "Internal use only", terms: "Work completed is subject to JobTorq standard service terms and conditions.",
   internalComments: "Customer advised repair complete",
   customerSignature: "Signature captured", customerSignatory: "Michael Daniels", technicianSignature: "Signature captured",
-  technicianName: "J. Mokoena", approvalDate: "24 July 2026, 16:42", footer: "Thank you for choosing FleetFix.", pageNumbers: "Page 1 of 1",
+  technicianName: "J. Mokoena", approvalDate: "24 July 2026, 16:42", footer: "Thank you for choosing JobTorq.", pageNumbers: "Page 1 of 1",
 };
 
 function JobCardPreview({ company, outputType, documentTitle, selectedFields, includeEmptyFields, palette, editableLabels, onClose }: {

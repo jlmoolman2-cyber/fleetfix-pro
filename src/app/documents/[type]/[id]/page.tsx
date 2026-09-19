@@ -187,9 +187,9 @@ export default function BusinessDocumentPage({
     const priceIncl = Math.min(999999.99, Math.max(0, Number(line.priceIncl ?? line.totalIncl ?? 0)));
     const unitExcl = Number(
       line.priceExcl ??
-        line.priceExclVat ??
-        line.price ??
-        priceIncl / (1 + taxRate / 100),
+      line.priceExclVat ??
+      line.price ??
+      priceIncl / (1 + taxRate / 100),
     );
     const discount = Math.min(99.99, Math.max(0, Number(line.discount ?? 0)));
     const totalExcl = Math.min(999999.99, Number(
@@ -203,10 +203,10 @@ export default function BusinessDocumentPage({
       line.type ||
       (line.isDescription === true ? "description" : "") ||
       (!line.inventoryId &&
-      !line.code &&
-      !Number(line.cost) &&
-      !Number(line.priceExcl) &&
-      !Number(line.priceIncl)
+        !line.code &&
+        !Number(line.cost) &&
+        !Number(line.priceExcl) &&
+        !Number(line.priceIncl)
         ? "description"
         : "item");
     return {
@@ -221,12 +221,12 @@ export default function BusinessDocumentPage({
   });
   const subtotal = Number(
     documentData.subtotal ??
-      calculated.reduce((sum: number, line: any) => sum + line.totalExcl, 0),
+    calculated.reduce((sum: number, line: any) => sum + line.totalExcl, 0),
   );
   const total = Number(
     documentData.grandTotal ??
-      documentData.total ??
-      calculated.reduce((sum: number, line: any) => sum + line.totalIncl, 0),
+    documentData.total ??
+    calculated.reduce((sum: number, line: any) => sum + line.totalIncl, 0),
   );
   const vat = Number(
     documentData.vatTotal ?? documentData.vat ?? total - subtotal,
@@ -235,9 +235,9 @@ export default function BusinessDocumentPage({
     type === "purchase_order"
       ? documentData.supplier || party?.supplierName || "Supplier"
       : documentData.customerName ||
-        party?.companyName ||
-        party?.customerName ||
-        "Customer";
+      party?.companyName ||
+      party?.customerName ||
+      "Customer";
   const partyAddress = [
     party?.physicalAddress,
     party?.address,
@@ -296,7 +296,7 @@ export default function BusinessDocumentPage({
             )}
             <div>
               <h1 className="text-xl font-black text-[#164e7a]">
-                {company.companyName || "FleetFix Pro - NVTS"}
+                {company.companyName || "JobTorq - NVTS"}
               </h1>
               <div className="mt-1 max-w-[390px] whitespace-pre-line text-[8px] text-slate-500">
                 {[
@@ -452,7 +452,7 @@ export default function BusinessDocumentPage({
                             length: Math.max(
                               0,
                               printColumns.length -
-                                Math.min(4, printColumns.length),
+                              Math.min(4, printColumns.length),
                             ),
                           },
                           (_, blankIndex) => (
@@ -497,7 +497,7 @@ export default function BusinessDocumentPage({
                           ) : column.id === "profit" ? (
                             money(
                               line.totalExcl -
-                                Number(line.cost || 0) * line.quantity,
+                              Number(line.cost || 0) * line.quantity,
                             )
                           ) : column.id === "totalExcl" ? (
                             money(line.totalExcl)
@@ -585,7 +585,7 @@ export default function BusinessDocumentPage({
                   />
                 )}
                 <h1 className="text-xl font-black text-[#164e7a]">
-                  {company.companyName || "FleetFix Pro - NVTS"}
+                  {company.companyName || "JobTorq - NVTS"}
                 </h1>
                 <p className="mt-1 text-[9px] text-slate-500">
                   {[company.physicalAddress, company.telephone, company.email]
@@ -636,7 +636,7 @@ export default function BusinessDocumentPage({
                   Payment Recorded By
                 </p>
                 <p className="mt-2 text-xl font-bold">
-                  {payment.createdByName || "FleetFix User"}
+                  {payment.createdByName || "JobTorq User"}
                 </p>
               </div>
             </section>

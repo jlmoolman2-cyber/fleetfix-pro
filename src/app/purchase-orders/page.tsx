@@ -902,7 +902,7 @@ export default function PurchaseOrdersPage({
           jobId: linkedJobId, jobNumber: linkedJobNumber, purchaseOrderId: documentId, purchaseOrderNumber: number,
           supplierName: supplier, instructionMethod, paymentInstruction, proceedInstruction, approved: true, approvalStatus: "approved",
           internalOnly: true,
-          recipientId, recipientName: recipient?.name || `${recipient?.firstName || ""} ${recipient?.lastName || ""}`.trim() || recipient?.email || "FleetFix user",
+          recipientId, recipientName: recipient?.name || `${recipient?.firstName || ""} ${recipient?.lastName || ""}`.trim() || recipient?.email || "JobTorq User",
           createdById: user?.uid || "", createdByName: user?.displayName || user?.email || "Authorized user",
           sourcePath: `/purchase-orders/${documentId}`, status: "active", finalized: false, createdAt: serverTimestamp(),
         });
@@ -1092,7 +1092,7 @@ export default function PurchaseOrdersPage({
               type: "purchase_order_review", title: `Purchase order ${documentDisplayNumber || documentId} requires review`,
               message: `${jobNumber ? `Job ${jobNumber} - ` : ""}Review the purchase order, approve it if authorized, and provide method and payment instructions.`,
               jobId: linkedJobId, jobNumber, purchaseOrderId: documentId, purchaseOrderNumber: documentDisplayNumber, internalOnly: true,
-              recipientId, recipientName: recipient?.name || `${recipient?.firstName || ""} ${recipient?.lastName || ""}`.trim() || recipient?.email || "FleetFix user",
+              recipientId, recipientName: recipient?.name || `${recipient?.firstName || ""} ${recipient?.lastName || ""}`.trim() || recipient?.email || "JobTorq User",
               sourcePath: `/purchase-orders/${documentId}`, status: "active", finalized: false, ...creationAuditFields(),
             });
           }));
@@ -1179,7 +1179,7 @@ export default function PurchaseOrdersPage({
             type: "purchase_order_review", title: `Purchase order ${documentNumber} requires review`,
             message: `${jobNumber ? `Job ${jobNumber} - ` : ""}Review the purchase order, approve it if authorized, and provide method and payment instructions.`,
             jobId: linkedJobId, jobNumber, purchaseOrderId: documentRef.id, purchaseOrderNumber: documentNumber, internalOnly: true,
-            recipientId, recipientName: recipient?.name || `${recipient?.firstName || ""} ${recipient?.lastName || ""}`.trim() || recipient?.email || "FleetFix user",
+            recipientId, recipientName: recipient?.name || `${recipient?.firstName || ""} ${recipient?.lastName || ""}`.trim() || recipient?.email || "JobTorq User",
             sourcePath: `/purchase-orders/${documentRef.id}`, status: "active", finalized: false, ...creationAuditFields(),
           });
         }));

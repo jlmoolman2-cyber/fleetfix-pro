@@ -431,7 +431,7 @@ export default function JobCardTaskPage() {
                         </h1>
 
                         <p className="mt-2 text-sm text-gray-500">
-                            Configure reusable FleetFix task templates
+                            Configure reusable JobTorq task templates
                         </p>
 
                     </div>

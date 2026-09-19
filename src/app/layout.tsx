@@ -4,8 +4,8 @@ import EnterKeyNavigation from "./components/EnterKeyNavigation";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "FleetFix",
-  description: "FleetFix service management interface",
+  title: "JobTorq",
+  description: "JobTorq — Workshop & Fleet Operations Platform",
 };
 
 export default function RootLayout({

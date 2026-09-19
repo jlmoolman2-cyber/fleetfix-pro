@@ -387,7 +387,7 @@ export default function AddJobPage() {
             const roundTripMinutes = Math.max(
               0,
               Number(completedJob.travelTimeMinutes) ||
-                roundTripTravelEstimate(company, completedJob.locationDetails).minutes
+              roundTripTravelEstimate(company, completedJob.locationDetails).minutes
             );
             const returnedToBaseAt = completedDate.getTime() + Math.ceil(roundTripMinutes / 2) * 60_000;
             nextAvailableAt = Math.max(nextAvailableAt, returnedToBaseAt);
@@ -1210,9 +1210,9 @@ export default function AddJobPage() {
       }
       const [externalStatusSnapshot, externalTemplateSnapshot] = externalSupplier
         ? await Promise.all([
-            getDoc(doc(clientDb, "companies", COMPANY_ID, "statuses", externalSupplier.externalJobStatusId)),
-            getDoc(doc(clientDb, "companies", COMPANY_ID, "messageTemplates", externalSupplier.externalJobMessageTemplateId)),
-          ])
+          getDoc(doc(clientDb, "companies", COMPANY_ID, "statuses", externalSupplier.externalJobStatusId)),
+          getDoc(doc(clientDb, "companies", COMPANY_ID, "messageTemplates", externalSupplier.externalJobMessageTemplateId)),
+        ])
         : [null, null];
       if (externalSupplier && (!externalStatusSnapshot?.exists() || !externalTemplateSnapshot?.exists())) {
         alert("The selected supplier's linked status or message template no longer exists.");
@@ -1294,9 +1294,9 @@ export default function AddJobPage() {
                 label:
                   typeof field.label === "string"
                     ? field.label.replace(
-                        /\{\{jobNumber\}\}/gi,
-                        jobNumber
-                      )
+                      /\{\{jobNumber\}\}/gi,
+                      jobNumber
+                    )
                     : field.label,
               })
             )
@@ -1321,9 +1321,9 @@ export default function AddJobPage() {
 
                 return snapshot.exists()
                   ? {
-                      id: snapshot.id,
-                      ...snapshot.data(),
-                    }
+                    id: snapshot.id,
+                    ...snapshot.data(),
+                  }
                   : null;
               })
           )
@@ -1338,24 +1338,24 @@ export default function AddJobPage() {
                   item.addToTask !== false
               )
               .map((item: any) => ({
-                  name:
-                    item.description ||
-                    template.name ||
-                    "Job Task",
-                  assignedTo: "Unassigned",
-                  completed: false,
-                  templateId: template.id,
-                  templateName:
-                    template.name || "Task Template",
-                  templateItemId:
-                    item.id || "",
-                  taskType:
-                    item.type || "Text",
-                  options:
-                    item.options || [],
-                  addToTask:
-                    item.addToTask !== false,
-                }))
+                name:
+                  item.description ||
+                  template.name ||
+                  "Job Task",
+                assignedTo: "Unassigned",
+                completed: false,
+                templateId: template.id,
+                templateName:
+                  template.name || "Task Template",
+                templateItemId:
+                  item.id || "",
+                taskType:
+                  item.type || "Text",
+                options:
+                  item.options || [],
+                addToTask:
+                  item.addToTask !== false,
+              }))
         );
 
       // AUTO ADD VEHICLE TO CUSTOMER FLEET
@@ -1445,230 +1445,230 @@ export default function AddJobPage() {
       const createdJobRef =
         await addDoc(
 
-        collection(
-          clientDb,
-          "companies",
-          COMPANY_ID,
-          "jobs"
-        ),
+          collection(
+            clientDb,
+            "companies",
+            COMPANY_ID,
+            "jobs"
+          ),
 
-        removeUndefinedValues({
+          removeUndefinedValues({
 
-          jobNumber,
+            jobNumber,
 
-          queueNumber,
-          queuePositionAtBooking: estimatedQueuePosition,
-          queuePosition: estimatedQueuePosition,
-          estimatedDispatchAt: externalSupplier ? null : Timestamp.fromDate(requestedDispatchDate),
-          estimatedArrivalAt: externalSupplier ? null : Timestamp.fromDate(requestedDispatchDate),
-          estimatedRepairMinutes: externalSupplier ? 0 : Math.max(15, Number(estimatedRepairMinutes) || 120),
-          travelTimeMinutes: externalSupplier ? 0 : estimatedTravelMinutes,
-          travelDistanceKm: externalSupplier ? 0 : Number(estimatedTravelDistanceKm.toFixed(1)),
-          travelAverageSpeedKph: 70,
-          travelBranchName: externalSupplier ? "" : closestBranchName,
-          edtMethod: externalSupplier ? "external-service-provider" : "assigned-technician-queue-eta-v2",
-          edtPaused: Boolean(externalSupplier),
-          edtCalculatedAt: serverTimestamp(),
+            queueNumber,
+            queuePositionAtBooking: estimatedQueuePosition,
+            queuePosition: estimatedQueuePosition,
+            estimatedDispatchAt: externalSupplier ? null : Timestamp.fromDate(requestedDispatchDate),
+            estimatedArrivalAt: externalSupplier ? null : Timestamp.fromDate(requestedDispatchDate),
+            estimatedRepairMinutes: externalSupplier ? 0 : Math.max(15, Number(estimatedRepairMinutes) || 120),
+            travelTimeMinutes: externalSupplier ? 0 : estimatedTravelMinutes,
+            travelDistanceKm: externalSupplier ? 0 : Number(estimatedTravelDistanceKm.toFixed(1)),
+            travelAverageSpeedKph: 70,
+            travelBranchName: externalSupplier ? "" : closestBranchName,
+            edtMethod: externalSupplier ? "external-service-provider" : "assigned-technician-queue-eta-v2",
+            edtPaused: Boolean(externalSupplier),
+            edtCalculatedAt: serverTimestamp(),
 
-          externalServiceProvider: Boolean(externalSupplier),
-          supplierId: externalSupplier?.id || "",
-          supplierName: externalSupplier?.supplierName || "",
-          supplierEmail: externalSupplier?.email || "",
-          supplierInformation: externalSupplier ? `${externalSupplier.supplierName || ""}${externalSupplier.supplierCode ? ` (${externalSupplier.supplierCode})` : ""}` : "",
+            externalServiceProvider: Boolean(externalSupplier),
+            supplierId: externalSupplier?.id || "",
+            supplierName: externalSupplier?.supplierName || "",
+            supplierEmail: externalSupplier?.email || "",
+            supplierInformation: externalSupplier ? `${externalSupplier.supplierName || ""}${externalSupplier.supplierCode ? ` (${externalSupplier.supplierCode})` : ""}` : "",
 
-          status:
-            initialStatus.name,
+            status:
+              initialStatus.name,
 
-          statusId:
-            initialStatus.id,
+            statusId:
+              initialStatus.id,
 
-          bookingAt: Timestamp.fromDate(requestedBookingDate),
-          dateBooked: requestedBookingDate.toISOString(),
-          isAdvancedBooking: advancedBooking,
-          bookedStatusId: bookedStatus?.id || "",
-          bookedStatusName: bookedStatus?.name || "",
+            bookingAt: Timestamp.fromDate(requestedBookingDate),
+            dateBooked: requestedBookingDate.toISOString(),
+            isAdvancedBooking: advancedBooking,
+            bookedStatusId: bookedStatus?.id || "",
+            bookedStatusName: bookedStatus?.name || "",
 
-          createdById: getAuth().currentUser?.uid || "",
-          createdByName: getAuth().currentUser?.displayName || getAuth().currentUser?.email || "System",
-          updatedById: getAuth().currentUser?.uid || "",
-          updatedByName: getAuth().currentUser?.displayName || getAuth().currentUser?.email || "System",
+            createdById: getAuth().currentUser?.uid || "",
+            createdByName: getAuth().currentUser?.displayName || getAuth().currentUser?.email || "System",
+            updatedById: getAuth().currentUser?.uid || "",
+            updatedByName: getAuth().currentUser?.displayName || getAuth().currentUser?.email || "System",
 
-          isClosed: false,
-          isCompleted: false,
-          completedAt: null,
-          archived: false,
-          closedAt: null,
-          archivedAt: null,
+            isClosed: false,
+            isCompleted: false,
+            completedAt: null,
+            archived: false,
+            closedAt: null,
+            archivedAt: null,
 
-          statusHistory: [
-            {
-              id: crypto.randomUUID(),
-              statusId: initialStatus.id,
-              statusName: initialStatus.name,
-              enteredAt: new Date().toISOString(),
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-              updatedById: "",
-              updatedByName: getAuth().currentUser?.displayName || getAuth().currentUser?.email || "System",
-            },
-          ],
-
-          customerId:
-            form.customerId,
-
-          customerName:
-            form.customerName,
-
-          customerContact:
-            form.customerContact,
-
-          customerContactNumber:
-            form.customerContactNumber,
-
-          customerContactEmail:
-            form.customerContactEmail,
-
-          customerContactId:
-            form.customerContactId || "",
-
-          vehicleId:
-            form.vehicleId,
-
-          vehicleRegNo:
-            form.vehicleRegNo,
-
-          vehicleFleetNo:
-            form.vehicleFleetNo,
-
-          vehicleMake:
-            form.vehicleMake,
-
-          vehicleModel:
-            form.vehicleModel,
-
-          vehicleType:
-            form.vehicleType,
-
-          vinNumber:
-            form.vinNumber,
-
-          driverName:
-            form.driverName,
-
-          driverContactNo:
-            form.driverContactNo,
-
-          location:
-            form.location,
-
-          locationId:
-            form.locationId || "",
-
-          locationDetails:
-            form.locationDetails || { name: form.location },
-
-          jobType:
-            form.jobType,
-
-          jobTypeId:
-            selectedJobType.id,
-
-          jobFormTemplateId:
-            startFormTemplateId,
-
-          jobFormTemplateName:
-            jobFormTemplate.name ||
-            "Job Form",
-
-          jobFormFields:
-            allocatedJobFormFields,
-
-          jobForms: [
-            {
-              id: crypto.randomUUID(),
-              templateId: startFormTemplateId,
-              templateName:
-                jobFormTemplate.name ||
-                "Job Form",
-              fields: allocatedJobFormFields,
-              allowMultipleUse: jobFormTemplate.allowMultipleUse === true,
-              status: form.status,
-              statusId: form.statusId,
-              allocatedAt: new Date().toISOString(),
-            },
-          ],
-
-          jobFormAllocatedAt:
-            serverTimestamp(),
-
-          jobTaskTemplateIds:
-            selectedJobType.linkedTaskTemplateIds || [],
-
-          jobTaskTemplates:
-            JSON.parse(JSON.stringify(linkedTaskTemplates)),
-
-          description:
-            form.complaint,
-
-          complaint:
-            form.complaint,
-
-          assignedTo:
-            form.assignedTo,
-
-          assignedUserId:
-            form.assignedUserId,
-
-          assignedUserIds:
-            form.assignedUserIds || [],
-
-          assignedUsers:
-            form.assignedUsers || [],
-
-          dynamicFields: {
-
-            ...jobCardFields.reduce(
-
-              (acc: any, fieldId) => {
-
-                acc[fieldId] =
-                  customerOwnedFieldIds.has(fieldId)
-                    ? customerFieldValue(fieldId)
-                    : form[fieldId] || "";
-
-                return acc;
-
+            statusHistory: [
+              {
+                id: crypto.randomUUID(),
+                statusId: initialStatus.id,
+                statusName: initialStatus.name,
+                enteredAt: new Date().toISOString(),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                updatedById: "",
+                updatedByName: getAuth().currentUser?.displayName || getAuth().currentUser?.email || "System",
               },
+            ],
 
-              {}
+            customerId:
+              form.customerId,
 
-            ),
+            customerName:
+              form.customerName,
 
+            customerContact:
+              form.customerContact,
 
-            ...statusFields.reduce(
+            customerContactNumber:
+              form.customerContactNumber,
 
-              (acc: any, field: any) => {
+            customerContactEmail:
+              form.customerContactEmail,
 
-                acc[field.id] =
-                  form[field.id] || "";
+            customerContactId:
+              form.customerContactId || "",
 
-                return acc;
+            vehicleId:
+              form.vehicleId,
 
+            vehicleRegNo:
+              form.vehicleRegNo,
+
+            vehicleFleetNo:
+              form.vehicleFleetNo,
+
+            vehicleMake:
+              form.vehicleMake,
+
+            vehicleModel:
+              form.vehicleModel,
+
+            vehicleType:
+              form.vehicleType,
+
+            vinNumber:
+              form.vinNumber,
+
+            driverName:
+              form.driverName,
+
+            driverContactNo:
+              form.driverContactNo,
+
+            location:
+              form.location,
+
+            locationId:
+              form.locationId || "",
+
+            locationDetails:
+              form.locationDetails || { name: form.location },
+
+            jobType:
+              form.jobType,
+
+            jobTypeId:
+              selectedJobType.id,
+
+            jobFormTemplateId:
+              startFormTemplateId,
+
+            jobFormTemplateName:
+              jobFormTemplate.name ||
+              "Job Form",
+
+            jobFormFields:
+              allocatedJobFormFields,
+
+            jobForms: [
+              {
+                id: crypto.randomUUID(),
+                templateId: startFormTemplateId,
+                templateName:
+                  jobFormTemplate.name ||
+                  "Job Form",
+                fields: allocatedJobFormFields,
+                allowMultipleUse: jobFormTemplate.allowMultipleUse === true,
+                status: form.status,
+                statusId: form.statusId,
+                allocatedAt: new Date().toISOString(),
               },
+            ],
 
-              {}
+            jobFormAllocatedAt:
+              serverTimestamp(),
 
-            ),
+            jobTaskTemplateIds:
+              selectedJobType.linkedTaskTemplateIds || [],
 
-          },
+            jobTaskTemplates:
+              JSON.parse(JSON.stringify(linkedTaskTemplates)),
 
-          createdAt:
-            serverTimestamp(),
+            description:
+              form.complaint,
 
-          updatedAt:
-            serverTimestamp(),
-        })
-      );
+            complaint:
+              form.complaint,
+
+            assignedTo:
+              form.assignedTo,
+
+            assignedUserId:
+              form.assignedUserId,
+
+            assignedUserIds:
+              form.assignedUserIds || [],
+
+            assignedUsers:
+              form.assignedUsers || [],
+
+            dynamicFields: {
+
+              ...jobCardFields.reduce(
+
+                (acc: any, fieldId) => {
+
+                  acc[fieldId] =
+                    customerOwnedFieldIds.has(fieldId)
+                      ? customerFieldValue(fieldId)
+                      : form[fieldId] || "";
+
+                  return acc;
+
+                },
+
+                {}
+
+              ),
+
+
+              ...statusFields.reduce(
+
+                (acc: any, field: any) => {
+
+                  acc[field.id] =
+                    form[field.id] || "";
+
+                  return acc;
+
+                },
+
+                {}
+
+              ),
+
+            },
+
+            createdAt:
+              serverTimestamp(),
+
+            updatedAt:
+              serverTimestamp(),
+          })
+        );
 
       await recalculateActiveJobQueue();
 
@@ -1740,23 +1740,23 @@ export default function AddJobPage() {
         estimatedDispatchTime: externalSupplier
           ? ""
           : requestedDispatchDate.toLocaleString("en-ZA", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            }),
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }),
         eta: externalSupplier
           ? ""
           : requestedDispatchDate.toLocaleString("en-ZA", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            }),
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }),
         link: jobCardLink,
         jobLink,
         jobCardLink,
@@ -1786,7 +1786,7 @@ export default function AddJobPage() {
           title: `Job ${jobNumber} booked`,
           message: `${form.customerName || "Customer"} · ${form.jobType || selectedJobType.name || "Job"}`,
           recipientId: recipient.id,
-          recipientName: recipient.name || recipient.displayName || `${recipient.firstName || ""} ${recipient.lastName || ""}`.trim() || recipient.email || "FleetFix User",
+          recipientName: recipient.name || recipient.displayName || `${recipient.firstName || ""} ${recipient.lastName || ""}`.trim() || recipient.email || "JobTorq User",
           jobId: createdJobRef.id,
           jobNumber,
           statusId: initialStatus.id,
@@ -1805,15 +1805,15 @@ export default function AddJobPage() {
           const notificationType = String(message.notificationType || "");
           const recipients = /assigned employees/i.test(notificationType)
             ? (form.assignedUserIds || []).map((userId: string) => {
-                const selectedUser = (form.assignedUsers || []).find((user: any) => user.id === userId);
-                const technician = technicians.find((user) => user.id === userId);
-                return {
-                  id: userId,
-                  name: selectedUser?.name || technicianName(technician as Technician) || "Assigned Employee",
-                  email: selectedUser?.email || technician?.email || "",
-                  phone: selectedUser?.mobile || technician?.mobile || "",
-                };
-              })
+              const selectedUser = (form.assignedUsers || []).find((user: any) => user.id === userId);
+              const technician = technicians.find((user) => user.id === userId);
+              return {
+                id: userId,
+                name: selectedUser?.name || technicianName(technician as Technician) || "Assigned Employee",
+                email: selectedUser?.email || technician?.email || "",
+                phone: selectedUser?.mobile || technician?.mobile || "",
+              };
+            })
             : /customer/i.test(notificationType)
               ? [{ id: form.customerContactId || form.customerId, name: form.customerContact || form.customerName || "Customer", email: form.customerContactEmail || "", phone: form.customerContactNumber || "" }]
               : externalSupplier
@@ -1985,7 +1985,7 @@ export default function AddJobPage() {
           <div>
 
             <div className="mb-2 text-xs font-black uppercase tracking-[0.25em] text-gray-400">
-              FleetFix Pro
+              JobTorq
             </div>
 
             <h1 className="text-3xl font-black tracking-tight text-gray-900">
@@ -3290,63 +3290,63 @@ hover:bg-blue-100
               <h2 className="mb-4 text-xl font-black text-gray-900">Assign Users / Technicians</h2>
               <div>
 
-                  {(form.assignedUsers || []).length > 0 && (
-                    <div className="mb-2 flex flex-wrap gap-2">
-                      {form.assignedUsers.map((user: any) => (
-                        <button
-                          key={user.id}
-                          type="button"
-                          onClick={() => {
-                            const selected = form.assignedUsers.filter((item: any) => item.id !== user.id);
-                            setForm({
-                              ...form,
-                              assignedUsers: selected,
-                              assignedUserIds: selected.map((item: any) => item.id),
-                              assignedUserId: selected[0]?.id || "",
-                              assignedTo: selected.map((item: any) => item.name).join(", "),
-                            });
-                          }}
-                          className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1.5 text-sm font-bold text-gray-800"
-                          title="Remove user"
-                        >
-                          <UserAvatar user={user} />
-                          <span>{technicianName(user)}</span>
-                          <span className="text-gray-400">×</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                {(form.assignedUsers || []).length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {form.assignedUsers.map((user: any) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => {
+                          const selected = form.assignedUsers.filter((item: any) => item.id !== user.id);
+                          setForm({
+                            ...form,
+                            assignedUsers: selected,
+                            assignedUserIds: selected.map((item: any) => item.id),
+                            assignedUserId: selected[0]?.id || "",
+                            assignedTo: selected.map((item: any) => item.name).join(", "),
+                          });
+                        }}
+                        className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-1.5 text-sm font-bold text-gray-800"
+                        title="Remove user"
+                      >
+                        <UserAvatar user={user} />
+                        <span>{technicianName(user)}</span>
+                        <span className="text-gray-400">×</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-                  <div className="relative">
-
-
-                    <input
-
-                      type="text"
-
-                      placeholder="Search and add users..."
-
-                      value={assignedUserSearch}
-
-                      onFocus={() =>
-                        setShowTechnicianResults(true)
-                      }
-
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") setShowTechnicianResults(false);
-                      }}
-
-                      onChange={(e) => {
-
-                        setAssignedUserSearch(e.target.value);
+                <div className="relative">
 
 
-                        setShowTechnicianResults(true);
+                  <input
+
+                    type="text"
+
+                    placeholder="Search and add users..."
+
+                    value={assignedUserSearch}
+
+                    onFocus={() =>
+                      setShowTechnicianResults(true)
+                    }
+
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") setShowTechnicianResults(false);
+                    }}
+
+                    onChange={(e) => {
+
+                      setAssignedUserSearch(e.target.value);
 
 
-                      }}
+                      setShowTechnicianResults(true);
 
-                      className="
+
+                    }}
+
+                    className="
 h-14
 w-full
 rounded-2xl
@@ -3357,13 +3357,13 @@ outline-none
 focus:border-blue-500
 "
 
-                    />
+                  />
 
 
 
-                    {showTechnicianResults && (
+                  {showTechnicianResults && (
 
-                      <div className="
+                    <div className="
 absolute
 top-[60px]
 left-0
@@ -3376,106 +3376,106 @@ shadow-2xl
 overflow-hidden
 ">
 
-                        <div className="border-b border-gray-200 bg-white p-3">
-                          <button type="button" onClick={() => setShowTechnicianResults(false)} className="w-full rounded-xl bg-blue-600 px-4 py-3 font-black text-white hover:bg-blue-700">Done</button>
-                        </div>
+                      <div className="border-b border-gray-200 bg-white p-3">
+                        <button type="button" onClick={() => setShowTechnicianResults(false)} className="w-full rounded-xl bg-blue-600 px-4 py-3 font-black text-white hover:bg-blue-700">Done</button>
+                      </div>
 
-                        <div className="
+                      <div className="
 max-h-[300px]
 overflow-y-auto
 ">
 
 
-                          {technicians
+                        {technicians
 
 
-                            .sort((a, b) =>
+                          .sort((a, b) =>
 
-                              (a.name || "")
-                                .localeCompare(
-                                  b.name || ""
-                                )
+                            (a.name || "")
+                              .localeCompare(
+                                b.name || ""
+                              )
 
-                            )
-
-
-                            .filter((tech) =>
-
-                              [
-                                tech.name,
-                                tech.firstName,
-                                tech.lastName,
-                                tech.role,
-                                tech.mobile,
-                                tech.email
-                              ]
-
-                                .join(" ")
-                                .toLowerCase()
-                                .includes(
-                                  assignedUserSearch.toLowerCase()
-                                )
-
-                            )
+                          )
 
 
-                            .map((tech) => (
+                          .filter((tech) =>
+
+                            [
+                              tech.name,
+                              tech.firstName,
+                              tech.lastName,
+                              tech.role,
+                              tech.mobile,
+                              tech.email
+                            ]
+
+                              .join(" ")
+                              .toLowerCase()
+                              .includes(
+                                assignedUserSearch.toLowerCase()
+                              )
+
+                          )
 
 
-                              <button
-
-                                key={tech.id}
-
-                                type="button"
-
-                                onClick={() => {
-                                  const displayName = technicianName(tech);
-                                  const existingIds: string[] = form.assignedUserIds || [];
-                                  const selected = existingIds.includes(tech.id)
-                                    ? (form.assignedUsers || []).filter((user: any) => user.id !== tech.id)
-                                    : [...(form.assignedUsers || []), { id: tech.id, name: displayName, firstName: tech.firstName || "", lastName: tech.lastName || "", email: tech.email || "", mobile: tech.mobile || "", color: tech.color || tech.profileColor || "#2563eb" }];
-                                  setForm({
-                                    ...form,
-                                    assignedUsers: selected,
-                                    assignedUserIds: selected.map((user: any) => user.id),
-                                    assignedUserId: selected[0]?.id || "",
-                                    assignedTo: selected.map((user: any) => user.name).join(", "),
-                                  });
-                                  setAssignedUserSearch("");
+                          .map((tech) => (
 
 
-                                }}
+                            <button
 
-                                className="w-full border-b border-gray-100 px-4 py-2 text-left text-xs hover:bg-blue-50"
+                              key={tech.id}
 
-                              >
+                              type="button"
+
+                              onClick={() => {
+                                const displayName = technicianName(tech);
+                                const existingIds: string[] = form.assignedUserIds || [];
+                                const selected = existingIds.includes(tech.id)
+                                  ? (form.assignedUsers || []).filter((user: any) => user.id !== tech.id)
+                                  : [...(form.assignedUsers || []), { id: tech.id, name: displayName, firstName: tech.firstName || "", lastName: tech.lastName || "", email: tech.email || "", mobile: tech.mobile || "", color: tech.color || tech.profileColor || "#2563eb" }];
+                                setForm({
+                                  ...form,
+                                  assignedUsers: selected,
+                                  assignedUserIds: selected.map((user: any) => user.id),
+                                  assignedUserId: selected[0]?.id || "",
+                                  assignedTo: selected.map((user: any) => user.name).join(", "),
+                                });
+                                setAssignedUserSearch("");
 
 
-                                <div className="flex items-center gap-3">
-                                  <UserAvatar user={tech} size="lg" />
-                                  <div className="font-black text-gray-900">{technicianName(tech)}</div>
-                                </div>
+                              }}
+
+                              className="w-full border-b border-gray-100 px-4 py-2 text-left text-xs hover:bg-blue-50"
+
+                            >
 
 
-                              </button>
+                              <div className="flex items-center gap-3">
+                                <UserAvatar user={tech} size="lg" />
+                                <div className="font-black text-gray-900">{technicianName(tech)}</div>
+                              </div>
 
 
-                            ))
-
-                          }
+                            </button>
 
 
-                        </div>
+                          ))
+
+                        }
+
 
                       </div>
 
-                    )}
+                    </div>
 
-                  </div>
+                  )}
 
                 </div>
 
               </div>
+
+            </div>
 
             {/* JOB FIELDS */}
             {false && editableJobFields.length > 0 && (
@@ -3791,109 +3791,109 @@ font-black
 
 
               <div className="min-h-0 flex-1 overflow-y-auto p-5">
-              <div className="
+                <div className="
 grid
 grid-cols-1
 gap-4
 md:grid-cols-6
 ">
 
-                <div className="md:col-span-3">
-                  <label className="text-sm font-bold">Location Type</label>
-                  <select value={newLocation.locationType || ""} onChange={(event) => setNewLocation((current: any) => ({ ...current, locationType: event.target.value }))} className="mt-2 h-11 w-full rounded-xl border border-gray-300 bg-white px-3 outline-none focus:border-blue-500">
-                    <option value="">Select location type</option><option value="Parking">Parking</option><option value="Depot">Depot</option><option value="Roadside">Roadside</option><option value="Place">Place</option>
-                  </select>
-                </div>
+                  <div className="md:col-span-3">
+                    <label className="text-sm font-bold">Location Type</label>
+                    <select value={newLocation.locationType || ""} onChange={(event) => setNewLocation((current: any) => ({ ...current, locationType: event.target.value }))} className="mt-2 h-11 w-full rounded-xl border border-gray-300 bg-white px-3 outline-none focus:border-blue-500">
+                      <option value="">Select location type</option><option value="Parking">Parking</option><option value="Depot">Depot</option><option value="Roadside">Roadside</option><option value="Place">Place</option>
+                    </select>
+                  </div>
 
-                <div className="md:col-span-3"><LocationInput location={newLocation} setLocation={setNewLocation} label="Location Name" field="name" /></div>
+                  <div className="md:col-span-3"><LocationInput location={newLocation} setLocation={setNewLocation} label="Location Name" field="name" /></div>
 
-                {newLocation.locationType === "Roadside" && <div className="grid grid-cols-1 gap-4 md:col-span-6 md:grid-cols-2">
-                  <div className="md:col-span-2"><label className="text-sm font-bold">Roadside Position</label><select value={newLocation.roadsidePosition || ""} onChange={(event) => setNewLocation((current: any) => ({ ...current, roadsidePosition: event.target.value }))} className="mt-2 h-11 w-full rounded-xl border border-gray-300 bg-white px-3"><option value="">Select roadside position</option><option value="between">Standing between Point A and Point B</option><option value="near">Standing near a Point</option></select></div>
-                  {newLocation.roadsidePosition === "between" && <><LocationInput location={newLocation} setLocation={setNewLocation} label="Point A" field="pointA" /><LocationInput location={newLocation} setLocation={setNewLocation} label="Point B" field="pointB" /></>}
-                  {newLocation.roadsidePosition === "near" && <div className="md:col-span-2"><LocationInput location={newLocation} setLocation={setNewLocation} label="Near Point" field="nearPoint" /></div>}
-                </div>}
+                  {newLocation.locationType === "Roadside" && <div className="grid grid-cols-1 gap-4 md:col-span-6 md:grid-cols-2">
+                    <div className="md:col-span-2"><label className="text-sm font-bold">Roadside Position</label><select value={newLocation.roadsidePosition || ""} onChange={(event) => setNewLocation((current: any) => ({ ...current, roadsidePosition: event.target.value }))} className="mt-2 h-11 w-full rounded-xl border border-gray-300 bg-white px-3"><option value="">Select roadside position</option><option value="between">Standing between Point A and Point B</option><option value="near">Standing near a Point</option></select></div>
+                    {newLocation.roadsidePosition === "between" && <><LocationInput location={newLocation} setLocation={setNewLocation} label="Point A" field="pointA" /><LocationInput location={newLocation} setLocation={setNewLocation} label="Point B" field="pointB" /></>}
+                    {newLocation.roadsidePosition === "near" && <div className="md:col-span-2"><LocationInput location={newLocation} setLocation={setNewLocation} label="Near Point" field="nearPoint" /></div>}
+                  </div>}
 
 
-                {newLocation.locationType !== "Roadside" && <div className="md:col-span-6">
+                  {newLocation.locationType !== "Roadside" && <div className="md:col-span-6">
 
-                  <LocationInput
+                    <LocationInput
+                      location={newLocation}
+                      setLocation={setNewLocation}
+                      label="Address"
+                      field="address"
+                      textarea
+                    />
+
+                  </div>}
+
+                  {newLocation.locationType !== "Roadside" && <div className="md:col-span-2"><LocationInput
                     location={newLocation}
                     setLocation={setNewLocation}
-                    label="Address"
-                    field="address"
-                    textarea
-                  />
+                    label="City"
+                    field="city"
+                  /></div>}
 
-                </div>}
-
-                {newLocation.locationType !== "Roadside" && <div className="md:col-span-2"><LocationInput
-                  location={newLocation}
-                  setLocation={setNewLocation}
-                  label="City"
-                  field="city"
-                /></div>}
-
-                <div className={newLocation.locationType === "Roadside" ? "md:col-span-3" : "md:col-span-2"}><LocationInput
-                  location={newLocation}
-                  setLocation={setNewLocation}
-                  label="Province"
-                  field="province"
-                /></div>
-
-                <div className={newLocation.locationType === "Roadside" ? "md:col-span-3" : "md:col-span-2"}><LocationInput location={newLocation} setLocation={setNewLocation} label="Country" field="country" /></div>
-
-
-                <div className="md:col-span-3"><LocationInput
-                  location={newLocation}
-                  setLocation={setNewLocation}
-                  label="GPS Latitude"
-                  field="latitude"
-                /></div>
-
-
-                <div className="md:col-span-3"><LocationInput
-                  location={newLocation}
-                  setLocation={setNewLocation}
-                  label="GPS Longitude"
-                  field="longitude"
-                /></div>
-
-
-                <div className="md:col-span-6">
-
-                  <LocationInput
+                  <div className={newLocation.locationType === "Roadside" ? "md:col-span-3" : "md:col-span-2"}><LocationInput
                     location={newLocation}
                     setLocation={setNewLocation}
-                    label="Google Maps Link"
-                    field="googleMaps"
-                  />
+                    label="Province"
+                    field="province"
+                  /></div>
 
-                  <button
-                    type="button"
-                    onClick={() => void updateNewLocationGpsAndMapsLink()}
-                    disabled={updatingLocationCoordinates}
-                    className="mt-3 h-11 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {updatingLocationCoordinates ? "Updating..." : "Update GPS / Maps Link"}
-                  </button>
-
-                </div>
+                  <div className={newLocation.locationType === "Roadside" ? "md:col-span-3" : "md:col-span-2"}><LocationInput location={newLocation} setLocation={setNewLocation} label="Country" field="country" /></div>
 
 
-                <div className="md:col-span-6">
-
-                  <LocationInput
+                  <div className="md:col-span-3"><LocationInput
                     location={newLocation}
                     setLocation={setNewLocation}
-                    label="Notes"
-                    field="notes"
-                    textarea
-                  />
+                    label="GPS Latitude"
+                    field="latitude"
+                  /></div>
+
+
+                  <div className="md:col-span-3"><LocationInput
+                    location={newLocation}
+                    setLocation={setNewLocation}
+                    label="GPS Longitude"
+                    field="longitude"
+                  /></div>
+
+
+                  <div className="md:col-span-6">
+
+                    <LocationInput
+                      location={newLocation}
+                      setLocation={setNewLocation}
+                      label="Google Maps Link"
+                      field="googleMaps"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => void updateNewLocationGpsAndMapsLink()}
+                      disabled={updatingLocationCoordinates}
+                      className="mt-3 h-11 rounded-xl bg-blue-600 px-5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {updatingLocationCoordinates ? "Updating..." : "Update GPS / Maps Link"}
+                    </button>
+
+                  </div>
+
+
+                  <div className="md:col-span-6">
+
+                    <LocationInput
+                      location={newLocation}
+                      setLocation={setNewLocation}
+                      label="Notes"
+                      field="notes"
+                      textarea
+                    />
+
+                  </div>
+
 
                 </div>
-
-
-              </div>
 
               </div>
 

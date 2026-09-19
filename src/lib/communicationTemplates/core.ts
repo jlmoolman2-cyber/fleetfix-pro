@@ -16,12 +16,12 @@ export type CommunicationTemplateInput = {
 };
 
 export const COMMUNICATION_VARIABLES = [
-  ["jobNumber", "Job number", "FleetFix job number", "NJ00001"], ["customerName", "Customer name", "Customer or company name", "ABC Logistics"],
+  ["jobNumber", "Job number", "JobTorq job number", "NJ00001"], ["customerName", "Customer name", "Customer or company name", "ABC Logistics"],
   ["contactName", "Contact name", "Customer contact name", "John Smith"], ["vehicleRegistration", "Vehicle registration", "Vehicle registration number", "ABC1234"],
   ["vehicleFleetNumber", "Vehicle fleet number", "Customer fleet number", "H10"], ["jobStatus", "Job status", "Current job status", "Work Started"],
   ["queueNumber", "Queue number", "Current queue position", "3"], ["estimatedDispatchTime", "Estimated dispatch", "Estimated dispatch time", "14:30"],
-  ["technicianName", "Technician name", "Assigned technician", "Jane Technician"], ["companyName", "Company name", "FleetFix company name", "FleetFix Pro"],
-  ["companyPhone", "Company phone", "FleetFix company phone", "+27 11 555 0100"], ["trackingLink", "Tracking link", "Safe customer tracking URL", "https://example.test/track/NJ00001"],
+  ["technicianName", "Technician name", "Assigned technician", "Jane Technician"], ["companyName", "Company name", "JobTorq company name", "JobTorq"],
+  ["companyPhone", "Company phone", "JobTorq company phone", "+27 11 555 0100"], ["trackingLink", "Tracking link", "Safe customer tracking URL", "https://example.test/track/NJ00001"],
   ["jobLocation", "Job location", "Job or breakdown location", "Johannesburg"], ["serviceProviderName", "Service provider", "External service provider name", "Roadside Services"],
   ["supplierName", "Supplier name", "Supplier business name", "Parts Supplier"],
 ].map(([key, label, description, example]) => ({ key, label, description, example })) as ReadonlyArray<{ key: string; label: string; description: string; example: string }>;

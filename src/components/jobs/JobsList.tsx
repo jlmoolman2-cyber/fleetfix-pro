@@ -236,7 +236,7 @@ export default function JobsList({ jobs, linkEnabled = true, canOpenRestricted =
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Jobs");
     const date = new Date().toISOString().slice(0, 10);
-    XLSX.writeFile(workbook, `FleetFix-Jobs-${date}.xlsx`);
+    XLSX.writeFile(workbook, `JobTorq-Jobs-${date}.xlsx`);
   }
 
   function startColumnResize(event: React.MouseEvent, columnId: string) {

@@ -208,7 +208,7 @@ export default function CustomerSystemDMPage() {
               </h2>
 
               <p className="mt-2 text-sm text-gray-500">
-                All messages, notifications and communication sent from FleetFix
+                All messages, notifications and communication sent from JobTorq
               </p>
 
             </div>

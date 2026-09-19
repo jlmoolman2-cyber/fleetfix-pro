@@ -83,7 +83,7 @@ export default function AdminPage() {
         </h1>
 
         <p className="mt-2 text-sm text-gray-500">
-          Configure FleetFix operational settings
+          Configure JobTorq operational settings
         </p>
 
       </div>

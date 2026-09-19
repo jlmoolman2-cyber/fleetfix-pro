@@ -578,19 +578,19 @@ export default function JobDetail({
               }));
 
           const list = completeStatuses.filter(
-                (status: any) =>
-                  status.active !== false
-              )
+            (status: any) =>
+              status.active !== false
+          )
 
 
-              .sort(
-                (a: any, b: any) =>
+            .sort(
+              (a: any, b: any) =>
 
-                  (a.sortOrder || 0)
-                  -
-                  (b.sortOrder || 0)
+                (a.sortOrder || 0)
+                -
+                (b.sortOrder || 0)
 
-              );
+            );
 
           setAllStatuses(completeStatuses);
           setStatuses(list);
@@ -827,7 +827,7 @@ export default function JobDetail({
         title: `Job ${job.jobNumber || job.id} status changed to ${status.name}`,
         message: extraReplacements.notes || extraReplacements.comment || `Status changed to ${status.name}.`,
         recipientId: recipient.id,
-        recipientName: recipient.name || recipient.displayName || `${recipient.firstName || ""} ${recipient.lastName || ""}`.trim() || recipient.email || "FleetFix User",
+        recipientName: recipient.name || recipient.displayName || `${recipient.firstName || ""} ${recipient.lastName || ""}`.trim() || recipient.email || "JobTorq User",
         jobId: job.id,
         jobNumber: job.jobNumber || "",
         statusId: status.id || "",
@@ -1072,7 +1072,7 @@ export default function JobDetail({
         updatedAt: serverTimestamp(),
       });
       await Promise.all(items.map((item: any) => updateDoc(doc(clientDb, "companies", COMPANY_ID, "jobs", job.id, "materials", item.materialId), { ravReplenishmentId: replenishmentRef.id, ravReplenishmentNumber: replenishmentNumber, updatedAt: serverTimestamp() })));
-      if (rav.assignedUserId) await addDoc(collection(clientDb, "companies", COMPANY_ID, "notifications"), { type: "rav-replenishment", title: `RAV replenishment ${replenishmentNumber}`, message: `${rav.name || "RAV"} requires ${items.length} stock line${items.length === 1 ? "" : "s"} to be replenished after job ${job.jobNumber || job.id}.`, recipientId: rav.assignedUserId, recipientName: rav.assignedUserName || "FleetFix User", createdById: currentUser?.uid || "", createdByName: currentUser?.displayName || currentUser?.email || "System", sourcePath: "/purchases?tab=replenishments", jobId: job.id, jobNumber: job.jobNumber || "", ravReplenishmentId: replenishmentRef.id, status: "active", finalized: false, createdAt: serverTimestamp() });
+      if (rav.assignedUserId) await addDoc(collection(clientDb, "companies", COMPANY_ID, "notifications"), { type: "rav-replenishment", title: `RAV replenishment ${replenishmentNumber}`, message: `${rav.name || "RAV"} requires ${items.length} stock line${items.length === 1 ? "" : "s"} to be replenished after job ${job.jobNumber || job.id}.`, recipientId: rav.assignedUserId, recipientName: rav.assignedUserName || "JobTorq User", createdById: currentUser?.uid || "", createdByName: currentUser?.displayName || currentUser?.email || "System", sourcePath: "/purchases?tab=replenishments", jobId: job.id, jobNumber: job.jobNumber || "", ravReplenishmentId: replenishmentRef.id, status: "active", finalized: false, createdAt: serverTimestamp() });
     }
     if (unusedMaterials.length > 0) {
       setMaterials((current) => current.map((material) => ({
@@ -1122,7 +1122,7 @@ export default function JobDetail({
       || job.googleMapsLink
       || "";
     const replacements: Record<string, string> = {
-      companyName: companyDetails?.companyName || companyDetails?.name || "FleetFix Pro - NVTS",
+      companyName: companyDetails?.companyName || companyDetails?.name || "JobTorq - NVTS",
       companyPhone: companyDetails?.telephone || companyDetails?.phone || "",
       companyEmail: companyDetails?.email || "",
       customerName: customer?.companyName || customer?.name || job.customerName || "",
@@ -1512,7 +1512,7 @@ export default function JobDetail({
         title: `Parts requisition ${requisitionNumber} for job ${job.jobNumber || job.id}`,
         message: `${requestedItems.length} parts/service line${requestedItems.length === 1 ? "" : "s"} require picking and issue sign-off.`,
         recipientId: user.id,
-        recipientName: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "FleetFix User",
+        recipientName: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "JobTorq User",
         createdById: currentUser?.uid || "",
         createdByName: currentUser?.displayName || currentUser?.email || "System",
         sourcePath: `/stock-picking/${requestRef.id}`,
@@ -1550,7 +1550,7 @@ export default function JobDetail({
       });
       setLinkedItems((current: any[]) => [...current, { id: returnRef.id, documentType: "parts_derequisition", derequisitionNumber, jobId: job.id, status: "awaiting_return" }]);
       const stockPickers = technicians.filter((user: any) => user.active !== false && (user.permissions?.["Pick and issue requested stock"] === true || hasPrivilegedRole(user.primaryRole || user.role)));
-      await Promise.all(stockPickers.map((user: any) => addDoc(collection(clientDb, "companies", COMPANY_ID, "notifications"), { type: "parts-derequisition", title: `Parts derequisition ${derequisitionNumber} for job ${job.jobNumber || job.id}`, message: `${returnedMaterials.length} unused material line${returnedMaterials.length === 1 ? " is" : "s are"} awaiting return completion.`, recipientId: user.id, recipientName: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "FleetFix User", createdById: currentUser?.uid || "", createdByName: currentUser?.displayName || currentUser?.email || "System", sourcePath: `/stock-returns/${returnRef.id}`, jobId: job.id, jobNumber: job.jobNumber || "", partsReturnId: returnRef.id, status: "active", finalized: false, createdAt: serverTimestamp() })));
+      await Promise.all(stockPickers.map((user: any) => addDoc(collection(clientDb, "companies", COMPANY_ID, "notifications"), { type: "parts-derequisition", title: `Parts derequisition ${derequisitionNumber} for job ${job.jobNumber || job.id}`, message: `${returnedMaterials.length} unused material line${returnedMaterials.length === 1 ? " is" : "s are"} awaiting return completion.`, recipientId: user.id, recipientName: user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email || "JobTorq User", createdById: currentUser?.uid || "", createdByName: currentUser?.displayName || currentUser?.email || "System", sourcePath: `/stock-returns/${returnRef.id}`, jobId: job.id, jobNumber: job.jobNumber || "", partsReturnId: returnRef.id, status: "active", finalized: false, createdAt: serverTimestamp() })));
       await updateDoc(doc(clientDb, "companies", COMPANY_ID, "jobs", job.id), { activePartsReturnId: returnRef.id, partsReturnStatus: "awaiting_return", unusedPartsDeclaration: "derequisition", unusedPartsConfirmedAt: serverTimestamp(), unusedPartsConfirmedById: currentUser?.uid || "", unusedPartsConfirmedByName: currentUser?.displayName || currentUser?.email || "Unknown User", updatedAt: serverTimestamp() });
       setReturnMaterialIds([]);
       setShowDerequisitionAction(false);
@@ -1589,9 +1589,9 @@ export default function JobDetail({
     const latestJob: any = latestJobSnapshot.exists() ? latestJobSnapshot.data() : job;
     const completionFields = Array.isArray(statusConfig.fields)
       ? statusConfig.fields.filter((field: any) =>
-          field.required === true &&
-          (!field.linkedJobType || field.linkedJobType === latestJob.jobType || field.linkedJobType === latestJob.jobTypeName)
-        )
+        field.required === true &&
+        (!field.linkedJobType || field.linkedJobType === latestJob.jobType || field.linkedJobType === latestJob.jobTypeName)
+      )
       : [];
     const fieldsComplete = completionFields.every((field: any) => {
       const reading = (latestJob.statusFieldReadings || []).find((entry: any) =>
@@ -1720,8 +1720,8 @@ export default function JobDetail({
 
     if (statusConfig.requirePhotoAlbumComplete === true) {
       const [albumSnapshot, photoSnapshot] = await Promise.all([
-      getDocs(collection(clientDb, "companies", COMPANY_ID, "photoAlbumTemplates")),
-      getDocs(collection(clientDb, "companies", COMPANY_ID, "jobs", job.id, "photoAlbumPhotos")),
+        getDocs(collection(clientDb, "companies", COMPANY_ID, "photoAlbumTemplates")),
+        getDocs(collection(clientDb, "companies", COMPANY_ID, "jobs", job.id, "photoAlbumPhotos")),
       ]);
       const configuredAlbumId = String(statusConfig.requiredPhotoAlbumId || "");
       const configuredCategoryIds = Array.isArray(statusConfig.requiredPhotoCategoryIds)
@@ -1759,8 +1759,8 @@ export default function JobDetail({
           const categoriesToCheck = allPhotoCategoriesSelected || configuredCategoryIds.length === 0
             ? linkedAlbum.categories || []
             : (linkedAlbum.categories || []).filter(
-                (category: any) => configuredCategoryIds.includes(String(category.id))
-              );
+              (category: any) => configuredCategoryIds.includes(String(category.id))
+            );
 
           if (!allPhotoCategoriesSelected) {
             const missingCategoryIds = configuredCategoryIds.filter(
@@ -1813,10 +1813,10 @@ export default function JobDetail({
         ? latestJob.jobForms
         : latestJob.jobFormTemplateId
           ? [{
-              id: latestJob.jobFormTemplateId,
-              templateId: latestJob.jobFormTemplateId,
-              name: latestJob.jobFormTemplateName,
-            }]
+            id: latestJob.jobFormTemplateId,
+            templateId: latestJob.jobFormTemplateId,
+            name: latestJob.jobFormTemplateName,
+          }]
           : [];
       const incompleteForms = allocatedForms.filter((form: any) => {
         const allocatedFormId = form.id || form.templateId;
@@ -1925,13 +1925,13 @@ export default function JobDetail({
         : null;
     const syncedFormUpdates = formsForStatus
       ? {
-          ...formAllocationUpdates,
-          jobForms: formsForStatus.map((form: any) => ({
-            ...form,
-            status: statusConfig.name,
-            statusId: statusConfig.id,
-          })),
-        }
+        ...formAllocationUpdates,
+        jobForms: formsForStatus.map((form: any) => ({
+          ...form,
+          status: statusConfig.name,
+          statusId: statusConfig.id,
+        })),
+      }
       : formAllocationUpdates;
 
     await handleStatusTimer(
@@ -3241,7 +3241,7 @@ export default function JobDetail({
     if (!comment) return alert("Enter a note or comment.");
     setSavingNoteEdit(true);
     try {
-      const editorName = currentUser?.displayName || currentUser?.email || "FleetFix User";
+      const editorName = currentUser?.displayName || currentUser?.email || "JobTorq User";
       const noteRef = doc(clientDb, "companies", COMPANY_ID, "jobs", job.id, "notes", note.id);
       await updateDoc(noteRef, { comment, editedAt: serverTimestamp(), editedById: currentUser?.uid || "", editedByName: editorName });
       await addDoc(collection(noteRef, "history"), { action: "edited", previousComment: note.comment || note.text || "", comment, editedById: currentUser?.uid || "", editedByName: editorName, createdAt: serverTimestamp() });
@@ -3376,12 +3376,12 @@ export default function JobDetail({
           ? [...job.jobForms]
           : job.jobFormTemplateId
             ? [{
-                id: job.jobFormTemplateId,
-                templateId: job.jobFormTemplateId,
-                templateName: job.jobFormTemplateName || "Job Form",
-                fields: job.jobFormFields || [],
-                allowMultipleUse: false,
-              }]
+              id: job.jobFormTemplateId,
+              templateId: job.jobFormTemplateId,
+              templateName: job.jobFormTemplateName || "Job Form",
+              fields: job.jobFormFields || [],
+              allowMultipleUse: false,
+            }]
             : [];
         const previousJobTypeId = job.jobTypeId || jobTypes.find(
           (jobType: any) => jobType.name === job.jobType
@@ -3418,9 +3418,9 @@ export default function JobDetail({
             valuesByForm,
             instanceId
           ) || (
-            Boolean(job.jobFormUpdatedAt) &&
-            templateId === job.jobFormTemplateId
-          );
+              Boolean(job.jobFormUpdatedAt) &&
+              templateId === job.jobFormTemplateId
+            );
           const isCompleted = completionByForm?.[instanceId]?.completed === true;
           const isPreviousTypeForm = previousTypeTemplateIds.has(templateId);
 
@@ -3502,9 +3502,9 @@ export default function JobDetail({
 
                 return snapshot.exists()
                   ? {
-                      id: snapshot.id,
-                      ...snapshot.data(),
-                    }
+                    id: snapshot.id,
+                    ...snapshot.data(),
+                  }
                   : null;
               })
             )
@@ -3634,12 +3634,12 @@ export default function JobDetail({
       ? [...job.jobForms]
       : job.jobFormTemplateId
         ? [{
-            id: job.jobFormTemplateId,
-            templateId: job.jobFormTemplateId,
-            templateName: job.jobFormTemplateName || "Job Form",
-            fields: job.jobFormFields || [],
-            allowMultipleUse: false,
-          }]
+          id: job.jobFormTemplateId,
+          templateId: job.jobFormTemplateId,
+          templateName: job.jobFormTemplateName || "Job Form",
+          fields: job.jobFormFields || [],
+          allowMultipleUse: false,
+        }]
         : [];
 
     const nextForms = [...currentForms];
@@ -4311,13 +4311,13 @@ export default function JobDetail({
     ? "Job completed"
     : job.edtPaused === true || /on\s*hold|hold/.test(String(job.status || "").toLowerCase())
       ? "Paused — Job On Hold"
-    : workHasStarted
-      ? "On site — Work in progress"
-      : (job.estimatedArrivalAt || job.estimatedDispatchAt)?.toDate?.()
-        ? formatDateTime24((job.estimatedArrivalAt || job.estimatedDispatchAt).toDate())
-        : (job.estimatedArrivalAt || job.estimatedDispatchAt)
-          ? formatDateTime24(new Date(job.estimatedArrivalAt || job.estimatedDispatchAt))
-          : "Not estimated";
+      : workHasStarted
+        ? "On site — Work in progress"
+        : (job.estimatedArrivalAt || job.estimatedDispatchAt)?.toDate?.()
+          ? formatDateTime24((job.estimatedArrivalAt || job.estimatedDispatchAt).toDate())
+          : (job.estimatedArrivalAt || job.estimatedDispatchAt)
+            ? formatDateTime24(new Date(job.estimatedArrivalAt || job.estimatedDispatchAt))
+            : "Not estimated";
   const isRestrictedJob =
     job.archived === true ||
     job.isClosed === true ||
@@ -4439,11 +4439,11 @@ export default function JobDetail({
 
   const configuredPendingStatusFields = pendingStatus?.fields
     ? pendingStatus.fields.filter(
-        (field: any, index: number, fields: any[]) =>
-          (field.required === true || activatedStatusFieldIds.includes(field.id)) &&
-          (!field.linkedJobType || field.linkedJobType === job.jobType || field.linkedJobType === job.jobTypeName) &&
-          index === fields.findIndex((candidate: any) => candidate.id === field.id)
-      )
+      (field: any, index: number, fields: any[]) =>
+        (field.required === true || activatedStatusFieldIds.includes(field.id)) &&
+        (!field.linkedJobType || field.linkedJobType === job.jobType || field.linkedJobType === job.jobTypeName) &&
+        index === fields.findIndex((candidate: any) => candidate.id === field.id)
+    )
     : [];
 
   const toHistoryDate = (value: any): Date | null => {
@@ -4619,10 +4619,10 @@ export default function JobDetail({
 
   const storedStatusHistory = Array.isArray(job.statusHistory)
     ? job.statusHistory.map((entry: any) => ({
-        ...entry,
-        statusName: entry.statusName || entry.status || "Unknown status",
-        enteredDate: toHistoryDate(entry.enteredAt || entry.createdAt || entry.updatedAt),
-      }))
+      ...entry,
+      statusName: entry.statusName || entry.status || "Unknown status",
+      enteredDate: toHistoryDate(entry.enteredAt || entry.createdAt || entry.updatedAt),
+    }))
     : [];
 
   const communicationStatusHistory = communications
@@ -4751,10 +4751,10 @@ export default function JobDetail({
         return group.key !== "purchase" || collectionItems.length === 0 || Boolean(identity);
       })
       .filter((item, index, items) => {
-      const identity = item.id || item.referenceNumber || item.documentNumber || item.number;
-      return index === items.findIndex((candidate) =>
-        (candidate.id || candidate.referenceNumber || candidate.documentNumber || candidate.number) === identity
-      );
+        const identity = item.id || item.referenceNumber || item.documentNumber || item.number;
+        return index === items.findIndex((candidate) =>
+          (candidate.id || candidate.referenceNumber || candidate.documentNumber || candidate.number) === identity
+        );
 
       });
     return { ...group, documents };
@@ -5395,11 +5395,10 @@ export default function JobDetail({
                     field.required ||
                     field.requiredStatusIds.includes(job.statusId) ||
                     field.requiredStatusIds.includes(job.status);
-                  const sharedClass = `w-full rounded-xl border px-3 py-2 font-semibold outline-none focus:border-blue-500 ${
-                    requiredNow && !String(customerJobFieldValues[field.id] ?? "").trim()
+                  const sharedClass = `w-full rounded-xl border px-3 py-2 font-semibold outline-none focus:border-blue-500 ${requiredNow && !String(customerJobFieldValues[field.id] ?? "").trim()
                       ? "border-amber-400 bg-amber-50"
                       : "border-gray-300 bg-white"
-                  }`;
+                    }`;
 
                   return (
                     <label key={field.id} className={field.type === "textarea" ? "md:col-span-2" : ""}>
@@ -5623,15 +5622,14 @@ text-sm
 
               <textarea
                 value={job.description || ""}
-                onChange={(e) =>
-                  {
-                    setJob({
-                      ...job,
-                      description:
-                        e.target.value,
-                    });
-                    setHasUnsavedAmendments(true);
-                  }
+                onChange={(e) => {
+                  setJob({
+                    ...job,
+                    description:
+                      e.target.value,
+                  });
+                  setHasUnsavedAmendments(true);
+                }
                 }
                 className="
                   min-h-[110px]
@@ -5811,9 +5809,9 @@ text-sm
                           directlyEditedFieldIds.includes(fieldId)
                             ? editableFields[fieldId] ?? ""
                             : statusFieldHistoryValue(
-                                fieldId,
-                                editableFields[fieldId] ?? job.statusFieldValues?.[fieldId] ?? fieldDefinitions[fieldId]?.value ?? ""
-                              )
+                              fieldId,
+                              editableFields[fieldId] ?? job.statusFieldValues?.[fieldId] ?? fieldDefinitions[fieldId]?.value ?? ""
+                            )
                         }
 
                         onChange={(e) => {
@@ -6536,21 +6534,21 @@ hover:bg-gray-50
 
                 <>
 
-                <div className="flex items-center rounded-lg bg-gray-50 px-2 py-1.5">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <UserAvatar user={assignedTechnician} size="sm" />
-                    <span className="truncate text-xs font-bold text-gray-900">{assignedUserName(assignedTechnician)}</span>
-                  </div>
-                </div>
-
-                {assignedTechnicians.slice(1).map((user: any) => (
-                  <div key={user.id} className="mt-1 flex items-center rounded-lg bg-gray-50 px-2 py-1.5">
+                  <div className="flex items-center rounded-lg bg-gray-50 px-2 py-1.5">
                     <div className="flex min-w-0 items-center gap-2">
-                      <UserAvatar user={user} size="sm" />
-                      <span className="truncate text-xs font-bold text-gray-900">{assignedUserName(user)}</span>
+                      <UserAvatar user={assignedTechnician} size="sm" />
+                      <span className="truncate text-xs font-bold text-gray-900">{assignedUserName(assignedTechnician)}</span>
                     </div>
                   </div>
-                ))}
+
+                  {assignedTechnicians.slice(1).map((user: any) => (
+                    <div key={user.id} className="mt-1 flex items-center rounded-lg bg-gray-50 px-2 py-1.5">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <UserAvatar user={user} size="sm" />
+                        <span className="truncate text-xs font-bold text-gray-900">{assignedUserName(user)}</span>
+                      </div>
+                    </div>
+                  ))}
 
                 </>
 
@@ -7423,13 +7421,13 @@ w-[500px]
                       : null;
                   const syncedFormUpdates = formsForStatus
                     ? {
-                        ...formAllocationUpdates,
-                        jobForms: formsForStatus.map((form: any) => ({
-                          ...form,
-                          status: pendingStatus.name,
-                          statusId: pendingStatus.id,
-                        })),
-                      }
+                      ...formAllocationUpdates,
+                      jobForms: formsForStatus.map((form: any) => ({
+                        ...form,
+                        status: pendingStatus.name,
+                        statusId: pendingStatus.id,
+                      })),
+                    }
                     : formAllocationUpdates;
 
                   const recordedAt = new Date().toISOString();
@@ -7925,7 +7923,7 @@ p-3
                               <div className="mt-4">
                                 <div className="mb-1 text-xs font-bold uppercase tracking-wide text-gray-400">Message body</div>
                                 <p className="whitespace-pre-wrap rounded-xl bg-white p-3 text-sm text-gray-700">
-                                {renderCommunicationBody(item.body || linkedTemplate?.htmlBody)}
+                                  {renderCommunicationBody(item.body || linkedTemplate?.htmlBody)}
                                 </p>
                               </div>
                             )}
@@ -7953,7 +7951,7 @@ p-3
           <p className="mt-2 text-gray-600">Before changing the status to <strong>{unusedPartsDecisionStatus.name}</strong>, confirm whether issued parts must be returned.</p>
           <div className="mt-6 grid gap-3"><button type="button" onClick={beginUnusedPartsDerequisition} className="rounded-xl bg-indigo-600 px-5 py-3 text-left font-black text-white"><span className="block">Unused Parts</span><span className="mt-1 block text-xs font-semibold text-indigo-100">Select returned items and create a derequisition slip.</span></button><button type="button" onClick={() => void confirmNoUnusedParts()} className="rounded-xl bg-blue-600 px-5 py-3 text-left font-black text-white"><span className="block">No Unused Parts</span><span className="mt-1 block text-xs font-semibold text-blue-100">Record the declaration and continue the status change.</span></button><button type="button" onClick={() => setUnusedPartsDecisionStatus(null)} className="rounded-xl border px-5 py-3 font-bold">Cancel Status Change</button></div>
         </div>
-            </div>}
+      </div>}
 
       {serialSelectionItem && <div className="fixed inset-0 z-[420] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true">
         <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">

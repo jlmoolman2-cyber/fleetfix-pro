@@ -1127,7 +1127,7 @@ px-3
           <div>
 
             <div className="mb-2 text-xs font-black uppercase tracking-[0.25em] text-gray-400">
-              FleetFix Pro
+              JobTorq
             </div>
 
             <h1 className="text-4xl font-black tracking-tight text-gray-900">

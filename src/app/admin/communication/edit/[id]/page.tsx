@@ -120,7 +120,7 @@ Your vehicle {{VehicleRegNo}}
 has been booked under job
 {{JobNo}}.
 
-Thank you for choosing FleetFix Pro.
+Thank you for choosing JobTorq.
 `
         );
 

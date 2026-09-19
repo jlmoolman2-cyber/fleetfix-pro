@@ -11,7 +11,7 @@ import { clientDb } from "@/lib/firebaseClient";
 import { formatDateTime24 } from "@/lib/dateTime";
 import { canReceiveNotification, type NotificationPreferences } from "@/lib/notificationPreferences";
 
-type RecordItem = { id: string; [key: string]: any };
+type RecordItem = { id: string;[key: string]: any };
 
 const money = (value: number) => new Intl.NumberFormat("en-ZA", { style: "currency", currency: "ZAR" }).format(value || 0);
 const dateValue = (value: any) => value?.toDate?.() || (value ? new Date(value) : null);
@@ -100,7 +100,7 @@ export default function DashboardPage() {
   return <main className="min-h-screen bg-[#f4f7fb] p-5 md:p-8">
     <div className="mx-auto max-w-[1500px]">
       <header className="mb-7 flex flex-wrap items-end justify-between gap-4">
-        <div><p className="text-xs font-black uppercase tracking-[0.28em] text-blue-600">FleetFix Pro</p><h1 className="mt-2 text-4xl font-black text-slate-950">Operations Dashboard</h1><p className="mt-2 text-slate-500">Live workshop, sales, purchasing and inventory overview.</p></div>
+        <div><p className="text-xs font-black uppercase tracking-[0.28em] text-blue-600">JobTorq</p><h1 className="mt-2 text-4xl font-black text-slate-950">Operations Dashboard</h1><p className="mt-2 text-slate-500">Workshop &amp; Fleet Operations Platform</p></div>
         <div className="flex flex-wrap gap-2"><QuickLink href="/jobs/new" label="New Job" icon={Plus} primary /><QuickLink href="/quotes/new" label="New Quote" icon={FileText} /><QuickLink href="/invoices/new" label="New Invoice" icon={Receipt} /></div>
       </header>
 
@@ -124,7 +124,7 @@ export default function DashboardPage() {
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><PanelHeader title="Attention Required" subtitle="Items needing action" />
             <div className="space-y-3 p-5"><AttentionRow href="/notifications" icon={Bell} label="Open notifications" count={openNotifications.length} color="red" /><AttentionRow href="/inventory" icon={AlertTriangle} label="Low-stock items" count={lowStock.length} color="amber" /><AttentionRow href="/invoices" icon={Receipt} label="Invoices outstanding" count={unpaidInvoices.length} color="emerald" /><AttentionRow href="/purchases" icon={ShoppingCart} label="Orders awaiting receipt" count={openPurchaseOrders.length} color="blue" /></div>
           </div>
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><PanelHeader title="FleetFix Modules" subtitle="Open a workspace" />
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"><PanelHeader title="JobTorq Modules" subtitle="Open a workspace" />
             <div className="grid grid-cols-2 gap-3 p-5"><ModuleLink href="/customers" icon={Users} label="Customers" count={(data.customers || []).length} /><ModuleLink href="/inventory" icon={Boxes} label="Inventory" count={(data.inventory || []).length} /><ModuleLink href="/queries" icon={ClipboardList} label="Queries" /><ModuleLink href="/notifications" icon={Bell} label="Notifications" count={openNotifications.length} /></div>
           </div>
         </div>

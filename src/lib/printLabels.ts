@@ -4,7 +4,7 @@ export function printLabelsInCleanWindow(selector: string, pageWidthMm: number, 
 
   const printWindow = window.open("", "_blank", "width=900,height=700");
   if (!printWindow) {
-    alert("Allow pop-ups for FleetFix to print labels.");
+    alert("Allow pop-ups for JobTorq to print labels.");
     return;
   }
 

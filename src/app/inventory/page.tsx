@@ -457,7 +457,7 @@ export default function InventoryPage() {
     if (sheet["!ref"]) sheet["!autofilter"] = { ref: sheet["!ref"] };
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, sheet, "Inventory");
-    XLSX.writeFile(workbook, `FleetFix-Inventory-${search.trim() ? "Filtered" : "All"}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(workbook, `JobTorq-Inventory-${search.trim() ? "Filtered" : "All"}-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
   async function readImportFile(file: File) {
@@ -840,11 +840,11 @@ export default function InventoryPage() {
 
                       {visibleColumnOrder.map((columnKey) => {
                         switch (columnKey) {
-                        case "image":
-                          return (
-                      <td key={columnKey} className="px-4 py-2">
+                          case "image":
+                            return (
+                              <td key={columnKey} className="px-4 py-2">
 
-                        <div className="
+                                <div className="
                           h-10
                           w-10
                           rounded-xl
@@ -854,30 +854,30 @@ export default function InventoryPage() {
                           bg-white
                         ">
 
-                          <Image
-                            src={
-                              item.imageUrl ||
-                              "https://placehold.co/80x80/png"
-                            }
-                            alt="Item"
-                            width={80}
-                            height={80}
-                            className="
+                                  <Image
+                                    src={
+                                      item.imageUrl ||
+                                      "https://placehold.co/80x80/png"
+                                    }
+                                    alt="Item"
+                                    width={80}
+                                    height={80}
+                                    className="
                               h-full
                               w-full
                               object-cover
                             "
-                          />
+                                  />
 
-                        </div>
+                                </div>
 
-                      </td>
-                          );
-                        case "qr":
-                          return (
-                      <td key={columnKey} className="px-4 py-2">
+                              </td>
+                            );
+                          case "qr":
+                            return (
+                              <td key={columnKey} className="px-4 py-2">
 
-                        <div className="
+                                <div className="
                           h-10
                           w-10
                           rounded-xl
@@ -888,108 +888,108 @@ export default function InventoryPage() {
                           p-1
                         ">
 
-                          <Image
-                            src={
-                              item.qrCodeUrl ||
-                              "https://placehold.co/80x80/png"
-                            }
-                            alt="QR"
-                            width={80}
-                            height={80}
-                            className="
+                                  <Image
+                                    src={
+                                      item.qrCodeUrl ||
+                                      "https://placehold.co/80x80/png"
+                                    }
+                                    alt="QR"
+                                    width={80}
+                                    height={80}
+                                    className="
                               h-full
                               w-full
                               object-contain
                             "
-                          />
+                                  />
 
-                        </div>
+                                </div>
 
-                      </td>
-                          );
-                        case "partNumber":
-                          return (
-                      <td key={columnKey} className="
+                              </td>
+                            );
+                          case "partNumber":
+                            return (
+                              <td key={columnKey} className="
                         px-4
                         py-2
                         font-black
                         text-blue-600
                       ">
-                        {item.partNumber}
-                      </td>
-                          );
-                        case "description":
-                          return (
-                      <td key={columnKey} className="
+                                {item.partNumber}
+                              </td>
+                            );
+                          case "description":
+                            return (
+                              <td key={columnKey} className="
                         px-4
                         py-2
                       ">
-                        {item.description}
-                      </td>
-                          );
-                        case "category":
-                          return (
-                      <td key={columnKey} className="px-4 py-2">
-                        {item.category}
-                      </td>
-                          );
-                        case "brand":
-                          return (
-                      <td key={columnKey} className="px-4 py-2">
-                        {item.brand}
-                      </td>
-                          );
-                        case "warehouse":
-                          const warehouseQuantity = Number(item.warehouseTotal || 0);
-                          return (
-                      <td key={columnKey} className={`
+                                {item.description}
+                              </td>
+                            );
+                          case "category":
+                            return (
+                              <td key={columnKey} className="px-4 py-2">
+                                {item.category}
+                              </td>
+                            );
+                          case "brand":
+                            return (
+                              <td key={columnKey} className="px-4 py-2">
+                                {item.brand}
+                              </td>
+                            );
+                          case "warehouse":
+                            const warehouseQuantity = Number(item.warehouseTotal || 0);
+                            return (
+                              <td key={columnKey} className={`
                         px-4
                         py-2
                         ${warehouseQuantity < 0 ? "font-black text-red-600" : ""}
                       `}>
-                        {warehouseQuantity.toFixed(2)}
-                      </td>
-                          );
-                        case "vans":
-                          const vanQuantity = Number(item.vanTotal || 0);
-                          return (
-                      <td key={columnKey} className={`
+                                {warehouseQuantity.toFixed(2)}
+                              </td>
+                            );
+                          case "vans":
+                            const vanQuantity = Number(item.vanTotal || 0);
+                            return (
+                              <td key={columnKey} className={`
                         px-4
                         py-2
                         ${vanQuantity < 0 ? "font-black text-red-600" : ""}
                       `}>
-                        {vanQuantity.toFixed(2)}
-                      </td>
-                          );
-                        case "total":
-                          const totalQuantity = Number(item.grandTotal || 0);
-                          return (
-                      <td key={columnKey} className={`
+                                {vanQuantity.toFixed(2)}
+                              </td>
+                            );
+                          case "total":
+                            const totalQuantity = Number(item.grandTotal || 0);
+                            return (
+                              <td key={columnKey} className={`
                         px-4
                         py-2
                         ${totalQuantity < 0 ? "font-black text-red-600" : ""}
                       `}>
-                        {totalQuantity.toFixed(2)}
-                      </td>
-                          );
-                        case "sellPrice":
-                          return (
-                      <td key={columnKey} className="
+                                {totalQuantity.toFixed(2)}
+                              </td>
+                            );
+                          case "sellPrice":
+                            return (
+                              <td key={columnKey} className="
                         px-4
                         py-2
                       ">
-                        R{" "}
-                        {Number(
-                          item.sellPrice || 0
-                        ).toFixed(2)}
-                      </td>
-                          );
-                        case "status":
-                          return (
-                      <td key={columnKey} className="px-4 py-2">
+                                R{" "}
+                                {Number(
+                                  item.sellPrice || 0
+                                ).toFixed(2)}
+                              </td>
+                            );
+                          case "status":
+                            return (
+                              <td key={columnKey} className="px-4 py-2">
 
-                        <div
-                          className={`
+                                <div
+                                  className={`
                             inline-flex
                             items-center
                             px-3
@@ -1000,43 +1000,43 @@ export default function InventoryPage() {
 
                             ${item.isActive
 
-                              ? "bg-green-100 text-green-700"
+                                      ? "bg-green-100 text-green-700"
 
-                              : "bg-red-100 text-red-700"
-                            }
+                                      : "bg-red-100 text-red-700"
+                                    }
                           `}
-                        >
+                                >
 
-                          {
-                            item.isActive
-                              ? "ACTIVE"
-                              : "INACTIVE"
-                          }
+                                  {
+                                    item.isActive
+                                      ? "ACTIVE"
+                                      : "INACTIVE"
+                                  }
 
-                        </div>
+                                </div>
 
-                      </td>
-                          );
-                        case "lastChangedBy":
-                          return (
-                            <td
-                              key={columnKey}
-                              className="px-4 py-2"
-                            >
-                              {item.lastChangedByName ? <UserAvatar user={userProfiles.find((user) => user.id === item.lastChangedById) || userProfiles.find((user) => userDisplayName(user).toLowerCase() === String(item.lastChangedByName).toLowerCase()) || item.lastChangedByName} /> : "—"}
-                            </td>
-                          );
-                        case "lastChangedAt":
-                          return (
-                            <td
-                              key={columnKey}
-                              className="whitespace-nowrap px-4 py-2"
-                            >
-                              {item.lastChangedAt?.toDate
-                                ? formatDateTime24(item.lastChangedAt.toDate())
-                                : "—"}
-                            </td>
-                          );
+                              </td>
+                            );
+                          case "lastChangedBy":
+                            return (
+                              <td
+                                key={columnKey}
+                                className="px-4 py-2"
+                              >
+                                {item.lastChangedByName ? <UserAvatar user={userProfiles.find((user) => user.id === item.lastChangedById) || userProfiles.find((user) => userDisplayName(user).toLowerCase() === String(item.lastChangedByName).toLowerCase()) || item.lastChangedByName} /> : "—"}
+                              </td>
+                            );
+                          case "lastChangedAt":
+                            return (
+                              <td
+                                key={columnKey}
+                                className="whitespace-nowrap px-4 py-2"
+                              >
+                                {item.lastChangedAt?.toDate
+                                  ? formatDateTime24(item.lastChangedAt.toDate())
+                                  : "—"}
+                              </td>
+                            );
                         }
                       })}
                     </tr>

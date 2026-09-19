@@ -404,7 +404,7 @@ export default function CompletedJobCardPage({ params }: { params: Promise<{ id:
         emptyMessage="No job notes, comments, status reasons, or status notes recorded."
       />}
       {has("attachments") && <JobCardTable title="Attachments" headers={["File", "Type", "Added By"]} rows={printableAttachments.map((attachment: any) => [attachment.name || attachment.fileName || attachment.fileNameOriginal || "—", attachment.type || attachment.fileType || attachment.category || "Attachment", attachment.createdByName || attachment.uploadedByName || attachment.addedByName || "—"])} emptyMessage="No attachments recorded on this job." />}
-      {has("terms") && <section className="job-card-section mt-2"><h2 className="job-card-section-title">Terms and approval</h2><p className="whitespace-pre-wrap p-2 text-[8px]">{job.jobCardCustomerSignatureTerms || job.terms || "Work completed is subject to FleetFix standard service terms and conditions."}</p></section>}
+      {has("terms") && <section className="job-card-section mt-2"><h2 className="job-card-section-title">Terms and approval</h2><p className="whitespace-pre-wrap p-2 text-[8px]">{job.jobCardCustomerSignatureTerms || job.terms || "Work completed is subject to JobTorq standard service terms and conditions."}</p></section>}
       {(has("technicianSignature") || has("customerSignature")) && <div className="mt-7 grid grid-cols-2 gap-10">
         {has("technicianSignature") && <div className="border-b pb-2 text-[8px] font-black uppercase text-slate-400">Technician signature</div>}
         {has("customerSignature") && <div className="border-b pb-2 text-[8px]">
@@ -413,7 +413,7 @@ export default function CompletedJobCardPage({ params }: { params: Promise<{ id:
           {(job.customerSignatory || job.jobCardCustomerSignedAt) && <div className="mt-1 normal-case text-slate-600">{[job.customerSignatory, formatDocumentValue(job.jobCardCustomerSignedAt)].filter(Boolean).join(" · ")}</div>}
         </div>}
       </div>}
-      {(has("footer") || has("pageNumbers")) && <footer className="mt-4 flex items-center justify-between border-t pt-2 text-[8px] text-slate-400"><span>{has("footer") ? job.footer || "Thank you for choosing FleetFix." : ""}</span><span>{has("pageNumbers") ? "Job card · Page 1" : ""}</span></footer>}
+      {(has("footer") || has("pageNumbers")) && <footer className="mt-4 flex items-center justify-between border-t pt-2 text-[8px] text-slate-400"><span>{has("footer") ? job.footer || "Thank you for choosing JobTorq." : ""}</span><span>{has("pageNumbers") ? "Job card · Page 1" : ""}</span></footer>}
     </article>
 
     <div className={printMode === "jobcard" || printMode === "photos" ? "print:hidden" : ""}>{(printMode === "all" || printMode === "jobcard-forms" || printMode === "forms" || has("jobForms")) && forms.map((form: any, index: number) => <ExactJobFormFrame key={form.id || index} jobId={id} formId={form.id || form.templateId} palette={palette} printEnabled={printMode !== "jobcard" && printMode !== "photos"} startOnNewPage={index === 0} />)}</div>

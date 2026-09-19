@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 const navItems = [
@@ -112,39 +113,14 @@ export default function Navigation({
             gap-3
           ">
 
-            <div className="
-              h-11
-              w-11
-              rounded-2xl
-              bg-white/10
-              flex
-              items-center
-              justify-center
-              text-lg
-              font-semibold
-            ">
-              F
-            </div>
-
-            <div>
-
-              <p className="
-                text-sm
-                uppercase
-                tracking-[0.24em]
-                text-slate-300
-              ">
-                FleetFix
-              </p>
-
-              <p className="
-                text-lg
-                font-semibold
-              ">
-                Service Portal
-              </p>
-
-            </div>
+            <Image
+              src="/brand/jobtorq-logo-dark.png"
+              alt="JobTorq — Workshop & Fleet Operations Platform"
+              width={210}
+              height={64}
+              className="h-auto w-full max-w-[210px]"
+              priority
+            />
 
           </div>
 

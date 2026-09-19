@@ -120,7 +120,7 @@ Your vehicle {{VehicleRegNo}}
 has been booked under job
 {{JobNo}}.
 
-Thank you for choosing FleetFix Pro.
+Thank you for choosing JobTorq.
 `
         );
 
@@ -309,7 +309,7 @@ Thank you for choosing FleetFix Pro.
                     >
 
                         <h2 className="mb-6 text-xl font-black text-gray-900">
-                            FleetFix-Pro Replacement Tags
+                            JobTorq Replacement Tags
                         </h2>
 
                         <div className="space-y-6">

@@ -84,38 +84,38 @@ export default function Navigation({
   useEffect(() => {
     if (!currentUser) { setOpenNotificationCount(0); knownActiveNotificationIds.current = null; return; }
     return onSnapshot(collection(clientDb, "companies", COMPANY_ID, "notifications"), (snapshot) => {
-    const unique = new Map<string, string>();
-    snapshot.docs.forEach((entry) => {
-      const data = entry.data();
-      const recipientIds = Array.isArray(data.recipientIds) ? data.recipientIds : [];
-      const intended = data.recipientId ? data.recipientId === currentUser.uid : data.assignedUserId ? data.assignedUserId === currentUser.uid : recipientIds.length ? recipientIds.includes(currentUser.uid) : true;
-      if (!intended || !canReceiveNotification(data, notificationPreferences) || data.finalized === true || data.status === "finalized") return;
-      const key = `${data.type || "notification"}|${data.sourcePath || data.title || entry.id}|${data.recipientId || data.assignedUserId || currentUser.uid}`;
-      if (!unique.has(key)) unique.set(key, entry.id);
-    });
-    const activeIds = new Set(unique.values());
-    const previousIds = knownActiveNotificationIds.current;
-    setOpenNotificationCount(activeIds.size);
-    knownActiveNotificationIds.current = activeIds;
-    if (!previousIds || !Array.from(activeIds).some((id) => !previousIds.has(id)) || window.localStorage.getItem("fleetfix-notification-sound") === "off") return;
-    try {
-      const AudioContextClass = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const context = new AudioContextClass();
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.type = "sine";
-      oscillator.frequency.setValueAtTime(880, context.currentTime);
-      gain.gain.setValueAtTime(0.0001, context.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.3);
-      oscillator.connect(gain);
-      gain.connect(context.destination);
-      oscillator.start();
-      oscillator.stop(context.currentTime + 0.32);
-      oscillator.addEventListener("ended", () => void context.close());
-    } catch (error) {
-      console.warn("Notification sound could not be played", error);
-    }
+      const unique = new Map<string, string>();
+      snapshot.docs.forEach((entry) => {
+        const data = entry.data();
+        const recipientIds = Array.isArray(data.recipientIds) ? data.recipientIds : [];
+        const intended = data.recipientId ? data.recipientId === currentUser.uid : data.assignedUserId ? data.assignedUserId === currentUser.uid : recipientIds.length ? recipientIds.includes(currentUser.uid) : true;
+        if (!intended || !canReceiveNotification(data, notificationPreferences) || data.finalized === true || data.status === "finalized") return;
+        const key = `${data.type || "notification"}|${data.sourcePath || data.title || entry.id}|${data.recipientId || data.assignedUserId || currentUser.uid}`;
+        if (!unique.has(key)) unique.set(key, entry.id);
+      });
+      const activeIds = new Set(unique.values());
+      const previousIds = knownActiveNotificationIds.current;
+      setOpenNotificationCount(activeIds.size);
+      knownActiveNotificationIds.current = activeIds;
+      if (!previousIds || !Array.from(activeIds).some((id) => !previousIds.has(id)) || window.localStorage.getItem("fleetfix-notification-sound") === "off") return;
+      try {
+        const AudioContextClass = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        const context = new AudioContextClass();
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(880, context.currentTime);
+        gain.gain.setValueAtTime(0.0001, context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.3);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start();
+        oscillator.stop(context.currentTime + 0.32);
+        oscillator.addEventListener("ended", () => void context.close());
+      } catch (error) {
+        console.warn("Notification sound could not be played", error);
+      }
     });
   }, [currentUser, notificationPreferences]);
 
@@ -160,7 +160,7 @@ export default function Navigation({
             </div>
             <div>
               <p className="text-sm uppercase tracking-[0.24em] text-slate-300">
-                FleetFix
+                JobTorq
               </p>
               <p className="text-lg font-semibold">Service Portal</p>
             </div>
@@ -195,10 +195,9 @@ export default function Navigation({
                   font-medium
                   transition
 
-                  ${
-                    isNotificationAlert
-                      ? "bg-red-600 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.15)] hover:bg-red-700"
-                      : isActive
+                  ${isNotificationAlert
+                    ? "bg-red-600 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.15)] hover:bg-red-700"
+                    : isActive
                       ? "bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)]"
                       : "text-slate-300 hover:bg-white/5 hover:text-white"
                   }
@@ -220,7 +219,7 @@ export default function Navigation({
         </nav>
         <div className="border-t border-white/10 p-3">
           <div className="mb-3 min-w-0 px-2">
-            <p className="truncate text-sm font-bold text-white">{currentUser?.displayName || currentUser?.email || "FleetFix user"}</p>
+            <p className="truncate text-sm font-bold text-white">{currentUser?.displayName || currentUser?.email || "JobTorq User"}</p>
             <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Signed in</p>
           </div>
           <button type="button" onClick={() => void signOut(clientAuth)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white"><LogOut size={18} />Sign out</button>

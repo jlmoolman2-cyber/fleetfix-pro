@@ -170,13 +170,13 @@ interface FormField {
     fleetAssetRole?: "truck" | "trailer-a" | "trailer-b";
 
     fleetProperty?:
-        | "vehicleMake"
-        | "vehicleModel"
-        | "vehicleType"
-        | "regNo"
-        | "fleetNo"
-        | "vinNumber"
-        | "odometer";
+    | "vehicleMake"
+    | "vehicleModel"
+    | "vehicleType"
+    | "regNo"
+    | "fleetNo"
+    | "vinNumber"
+    | "odometer";
 }
 
 function canReceiveAutoFill(field: FormField) {
@@ -706,7 +706,7 @@ export default function JobFormBuilderPage({
                         ? 100
                         : type === "table"
                             ? 180
-                        : type === "signature"
+                            : type === "signature"
                                 ? 300
                                 : type === "info-text"
                                     ? 80
@@ -896,7 +896,7 @@ export default function JobFormBuilderPage({
             makeField("title", "JOB CARD - {{jobNumber}}", 57, 1054, 300, 24, {
                 fontSize: 12,
             }),
-            makeField("info-text", "Powered by FleetFix Pro · Version 52 · Page 1 of 2", 437, 1054, 300, 24),
+            makeField("info-text", "Powered by JobTorq · Version 52 · Page 1 of 2", 437, 1054, 300, 24),
 
             makeField("title", "ACKNOWLEDGEMENT OF COMPLETION AND ACCEPTANCE", 57, pageTwo + 57, 680, 34, {
                 fontSize: 17,
@@ -930,7 +930,7 @@ export default function JobFormBuilderPage({
             makeField("title", "JOB CARD - {{jobNumber}}", 57, pageTwo + 1000, 300, 24, {
                 fontSize: 12,
             }),
-            makeField("info-text", "Powered by FleetFix Pro · Version 52 · Page 2 of 2", 437, pageTwo + 1000, 300, 24),
+            makeField("info-text", "Powered by JobTorq · Version 52 · Page 2 of 2", 437, pageTwo + 1000, 300, 24),
         ];
 
         setFields(template);
@@ -1906,7 +1906,7 @@ export default function JobFormBuilderPage({
                             }}
                         >
 
-                        {showLabel ? field.label : ""}
+                            {showLabel ? field.label : ""}
 
                         </div>
 
@@ -2958,46 +2958,46 @@ export default function JobFormBuilderPage({
                                 "info-image",
                                 "image",
                             ].includes(selectedField.type) && (
-                                <div className="mt-3 space-y-3">
-                                    <label className="flex items-center gap-2 rounded border p-2 text-xs font-bold">
+                                    <div className="mt-3 space-y-3">
+                                        <label className="flex items-center gap-2 rounded border p-2 text-xs font-bold">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedField.required === true}
+                                                onChange={(event) => {
+                                                    const required = event.target.checked;
+                                                    updateField(selectedField.id, { required });
+                                                    setSelectedField({
+                                                        ...selectedField,
+                                                        required,
+                                                    });
+                                                }}
+                                            />
+                                            REQUIRED — USER MUST COMPLETE
+                                        </label>
+
+                                        <label className="text-xs font-bold">
+                                            FILLABLE TEXT SIZE
+                                        </label>
                                         <input
-                                            type="checkbox"
-                                            checked={selectedField.required === true}
+                                            type="number"
+                                            min={6}
+                                            max={72}
+                                            className="w-full border p-2"
+                                            value={selectedField.inputFontSize ?? selectedField.fontSize ?? 11}
                                             onChange={(event) => {
-                                                const required = event.target.checked;
-                                                updateField(selectedField.id, { required });
+                                                const inputFontSize = Math.min(
+                                                    72,
+                                                    Math.max(6, Number(event.target.value))
+                                                );
+                                                updateField(selectedField.id, { inputFontSize });
                                                 setSelectedField({
                                                     ...selectedField,
-                                                    required,
+                                                    inputFontSize,
                                                 });
                                             }}
                                         />
-                                        REQUIRED — USER MUST COMPLETE
-                                    </label>
-
-                                    <label className="text-xs font-bold">
-                                        FILLABLE TEXT SIZE
-                                    </label>
-                                    <input
-                                        type="number"
-                                        min={6}
-                                        max={72}
-                                        className="w-full border p-2"
-                                        value={selectedField.inputFontSize ?? selectedField.fontSize ?? 11}
-                                        onChange={(event) => {
-                                            const inputFontSize = Math.min(
-                                                72,
-                                                Math.max(6, Number(event.target.value))
-                                            );
-                                            updateField(selectedField.id, { inputFontSize });
-                                            setSelectedField({
-                                                ...selectedField,
-                                                inputFontSize,
-                                            });
-                                        }}
-                                    />
-                                </div>
-                            )}
+                                    </div>
+                                )}
 
                             {![
                                 "section",
@@ -3008,80 +3008,80 @@ export default function JobFormBuilderPage({
                                 "signature",
                                 "table",
                             ].includes(selectedField.type) && (
-                                <div className="mt-3">
-                                    <label className="text-xs font-bold">
-                                        FIELD INPUT TYPE
-                                    </label>
+                                    <div className="mt-3">
+                                        <label className="text-xs font-bold">
+                                            FIELD INPUT TYPE
+                                        </label>
 
-                                    <select
-                                        className="w-full border p-2"
-                                        value={selectedField.type}
-                                        onChange={(event) => {
-                                            const type =
-                                                event.target.value as FieldType;
+                                        <select
+                                            className="w-full border p-2"
+                                            value={selectedField.type}
+                                            onChange={(event) => {
+                                                const type =
+                                                    event.target.value as FieldType;
 
-                                            const updates: Partial<FormField> = {
-                                                type,
-                                                ...((
-                                                    type === "select" ||
-                                                    type === "multiselect"
-                                                ) &&
-                                                !selectedField.options?.length
-                                                    ? {
-                                                        options: [
-                                                            "Option 1",
-                                                        ],
-                                                    }
-                                                    : {}),
-                                            };
+                                                const updates: Partial<FormField> = {
+                                                    type,
+                                                    ...((
+                                                        type === "select" ||
+                                                        type === "multiselect"
+                                                    ) &&
+                                                        !selectedField.options?.length
+                                                        ? {
+                                                            options: [
+                                                                "Option 1",
+                                                            ],
+                                                        }
+                                                        : {}),
+                                                };
 
-                                            updateField(
-                                                selectedField.id,
-                                                updates
-                                            );
+                                                updateField(
+                                                    selectedField.id,
+                                                    updates
+                                                );
 
-                                            setSelectedField({
-                                                ...selectedField,
-                                                ...updates,
-                                            });
-                                        }}
-                                    >
-                                        {selectedField.type ===
-                                            "linked-job-field" && (
-                                            <option value="linked-job-field">
-                                                Linked Job Field
+                                                setSelectedField({
+                                                    ...selectedField,
+                                                    ...updates,
+                                                });
+                                            }}
+                                        >
+                                            {selectedField.type ===
+                                                "linked-job-field" && (
+                                                    <option value="linked-job-field">
+                                                        Linked Job Field
+                                                    </option>
+                                                )}
+                                            <option value="text">
+                                                Text
                                             </option>
-                                        )}
-                                        <option value="text">
-                                            Text
-                                        </option>
-                                        <option value="number">
-                                            Number
-                                        </option>
-                                        <option value="textarea">
-                                            Text Area
-                                        </option>
-                                        <option value="select">
-                                            Select
-                                        </option>
-                                        <option value="multiselect">
-                                            Multiple Select
-                                        </option>
-                                        <option value="checkbox">
-                                            Checkbox
-                                        </option>
-                                        <option value="yesno">
-                                            Yes or No
-                                        </option>
-                                        <option value="date">
-                                            Date
-                                        </option>
-                                        <option value="datetime">
-                                            Date and Time
-                                        </option>
-                                    </select>
-                                </div>
-                            )}
+                                            <option value="number">
+                                                Number
+                                            </option>
+                                            <option value="textarea">
+                                                Text Area
+                                            </option>
+                                            <option value="select">
+                                                Select
+                                            </option>
+                                            <option value="multiselect">
+                                                Multiple Select
+                                            </option>
+                                            <option value="checkbox">
+                                                Checkbox
+                                            </option>
+                                            <option value="yesno">
+                                                Yes or No
+                                            </option>
+                                            <option value="date">
+                                                Date
+                                            </option>
+                                            <option value="datetime">
+                                                Date and Time
+                                            </option>
+                                        </select>
+                                    </div>
+                                )}
 
                             {![
                                 "section",
@@ -3093,190 +3093,190 @@ export default function JobFormBuilderPage({
                                 "table",
                                 "textarea",
                             ].includes(selectedField.type) && (
-                                <div className="mt-3 grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-xs font-bold">
-                                            FIELD NAME WIDTH
-                                        </label>
-                                        <input
-                                            type="number"
-                                            min={40}
-                                            className="w-full border p-2"
-                                            value={
-                                                selectedField.labelWidth ??
-                                                110
-                                            }
-                                            onChange={(event) => {
-                                                const labelWidth =
-                                                    Math.max(
-                                                        40,
-                                                        Number(
-                                                            event.target.value
-                                                        )
-                                                    );
-                                                const currentLabelWidth =
+                                    <div className="mt-3 grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-xs font-bold">
+                                                FIELD NAME WIDTH
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min={40}
+                                                className="w-full border p-2"
+                                                value={
                                                     selectedField.labelWidth ??
-                                                    110;
-                                                const fillableWidth =
-                                                    Math.max(
-                                                        40,
-                                                        selectedField.width -
-                                                        currentLabelWidth
-                                                    );
-                                                const width =
-                                                    labelWidth +
-                                                    fillableWidth;
+                                                    110
+                                                }
+                                                onChange={(event) => {
+                                                    const labelWidth =
+                                                        Math.max(
+                                                            40,
+                                                            Number(
+                                                                event.target.value
+                                                            )
+                                                        );
+                                                    const currentLabelWidth =
+                                                        selectedField.labelWidth ??
+                                                        110;
+                                                    const fillableWidth =
+                                                        Math.max(
+                                                            40,
+                                                            selectedField.width -
+                                                            currentLabelWidth
+                                                        );
+                                                    const width =
+                                                        labelWidth +
+                                                        fillableWidth;
 
-                                                updateField(
-                                                    selectedField.id,
-                                                    {
+                                                    updateField(
+                                                        selectedField.id,
+                                                        {
+                                                            labelWidth,
+                                                            width,
+                                                        }
+                                                    );
+                                                    setSelectedField({
+                                                        ...selectedField,
                                                         labelWidth,
                                                         width,
-                                                    }
-                                                );
-                                                setSelectedField({
-                                                    ...selectedField,
-                                                    labelWidth,
-                                                    width,
-                                                });
-                                            }}
-                                        />
-                                    </div>
+                                                    });
+                                                }}
+                                            />
+                                        </div>
 
-                                    <div>
-                                        <label className="text-xs font-bold">
-                                            FILLABLE AREA WIDTH
-                                        </label>
-                                        <input
-                                            type="number"
-                                            min={40}
-                                            className="w-full border p-2"
-                                            value={Math.max(
-                                                40,
-                                                selectedField.width -
-                                                (selectedField.labelWidth ??
-                                                    110)
-                                            )}
-                                            onChange={(event) => {
-                                                const fillableWidth =
-                                                    Math.max(
-                                                        40,
-                                                        Number(
-                                                            event.target.value
-                                                        )
-                                                    );
-                                                const width =
+                                        <div>
+                                            <label className="text-xs font-bold">
+                                                FILLABLE AREA WIDTH
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min={40}
+                                                className="w-full border p-2"
+                                                value={Math.max(
+                                                    40,
+                                                    selectedField.width -
                                                     (selectedField.labelWidth ??
-                                                        110) +
-                                                    fillableWidth;
+                                                        110)
+                                                )}
+                                                onChange={(event) => {
+                                                    const fillableWidth =
+                                                        Math.max(
+                                                            40,
+                                                            Number(
+                                                                event.target.value
+                                                            )
+                                                        );
+                                                    const width =
+                                                        (selectedField.labelWidth ??
+                                                            110) +
+                                                        fillableWidth;
 
-                                                updateField(
-                                                    selectedField.id,
-                                                    { width }
-                                                );
-                                                setSelectedField({
-                                                    ...selectedField,
-                                                    width,
-                                                });
-                                            }}
-                                        />
+                                                    updateField(
+                                                        selectedField.id,
+                                                        { width }
+                                                    );
+                                                    setSelectedField({
+                                                        ...selectedField,
+                                                        width,
+                                                    });
+                                                }}
+                                            />
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
                             {[
                                 "textarea",
                                 "signature",
                             ].includes(selectedField.type) && (
-                                <div className="mt-3 grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-xs font-bold">
-                                            FIELD NAME HEIGHT
-                                        </label>
-                                        <input
-                                            type="number"
-                                            min={20}
-                                            className="w-full border p-2"
-                                            value={
-                                                selectedField.labelHeight ??
-                                                28
-                                            }
-                                            onChange={(event) => {
-                                                const oldLabelHeight =
+                                    <div className="mt-3 grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-xs font-bold">
+                                                FIELD NAME HEIGHT
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min={20}
+                                                className="w-full border p-2"
+                                                value={
                                                     selectedField.labelHeight ??
-                                                    28;
-                                                const fillableHeight =
-                                                    Math.max(
-                                                        40,
-                                                        selectedField.height -
-                                                        oldLabelHeight
-                                                    );
-                                                const labelHeight =
-                                                    Math.max(
-                                                        20,
-                                                        Number(
-                                                            event.target.value
-                                                        )
-                                                    );
-                                                const height =
-                                                    labelHeight +
-                                                    fillableHeight;
+                                                    28
+                                                }
+                                                onChange={(event) => {
+                                                    const oldLabelHeight =
+                                                        selectedField.labelHeight ??
+                                                        28;
+                                                    const fillableHeight =
+                                                        Math.max(
+                                                            40,
+                                                            selectedField.height -
+                                                            oldLabelHeight
+                                                        );
+                                                    const labelHeight =
+                                                        Math.max(
+                                                            20,
+                                                            Number(
+                                                                event.target.value
+                                                            )
+                                                        );
+                                                    const height =
+                                                        labelHeight +
+                                                        fillableHeight;
 
-                                                updateField(
-                                                    selectedField.id,
-                                                    {
+                                                    updateField(
+                                                        selectedField.id,
+                                                        {
+                                                            labelHeight,
+                                                            height,
+                                                        }
+                                                    );
+                                                    setSelectedField({
+                                                        ...selectedField,
                                                         labelHeight,
                                                         height,
-                                                    }
-                                                );
-                                                setSelectedField({
-                                                    ...selectedField,
-                                                    labelHeight,
-                                                    height,
-                                                });
-                                            }}
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold">
-                                            FILLABLE AREA HEIGHT
-                                        </label>
-                                        <input
-                                            type="number"
-                                            min={40}
-                                            className="w-full border p-2"
-                                            value={Math.max(
-                                                40,
-                                                selectedField.height -
-                                                (selectedField.labelHeight ??
-                                                    28)
-                                            )}
-                                            onChange={(event) => {
-                                                const fillableHeight =
-                                                    Math.max(
-                                                        40,
-                                                        Number(
-                                                            event.target.value
-                                                        )
-                                                    );
-                                                const height =
+                                                    });
+                                                }}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-bold">
+                                                FILLABLE AREA HEIGHT
+                                            </label>
+                                            <input
+                                                type="number"
+                                                min={40}
+                                                className="w-full border p-2"
+                                                value={Math.max(
+                                                    40,
+                                                    selectedField.height -
                                                     (selectedField.labelHeight ??
-                                                        28) +
-                                                    fillableHeight;
+                                                        28)
+                                                )}
+                                                onChange={(event) => {
+                                                    const fillableHeight =
+                                                        Math.max(
+                                                            40,
+                                                            Number(
+                                                                event.target.value
+                                                            )
+                                                        );
+                                                    const height =
+                                                        (selectedField.labelHeight ??
+                                                            28) +
+                                                        fillableHeight;
 
-                                                updateField(
-                                                    selectedField.id,
-                                                    { height }
-                                                );
-                                                setSelectedField({
-                                                    ...selectedField,
-                                                    height,
-                                                });
-                                            }}
-                                        />
+                                                    updateField(
+                                                        selectedField.id,
+                                                        { height }
+                                                    );
+                                                    setSelectedField({
+                                                        ...selectedField,
+                                                        height,
+                                                    });
+                                                }}
+                                            />
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
                             {selectedField.type === "textarea" && (
                                 <label className="mt-3 flex items-center gap-2 rounded border p-2 text-xs font-bold">
@@ -3543,81 +3543,81 @@ export default function JobFormBuilderPage({
                             {(selectedField.type === "select" ||
                                 (selectedField.type === "linked-job-field" &&
                                     resolvedFieldOptions(selectedField).length > 0)) && (
-                                <div className="rounded border border-blue-200 bg-blue-50 p-3">
-                                    <label className="text-xs font-bold">
-                                        OPTION-SPECIFIC AUTO-FILL
-                                    </label>
-                                    <p className="mt-1 text-[10px] text-gray-600">
-                                        Choose which fields each individual option should fill with that option's value.
-                                    </p>
-                                    <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">
-                                        {resolvedFieldOptions(selectedField).map((option) => (
-                                            <details key={option} className="rounded border bg-white">
-                                                <summary className="cursor-pointer px-2 py-2 text-xs font-bold">
-                                                    {option}
-                                                    <span className="ml-1 font-normal text-gray-500">
-                                                        ({selectedField.autoFillRules?.find((rule) => rule.sourceValue === option)?.targetFieldIds.length || 0} targets)
-                                                    </span>
-                                                </summary>
-                                                <div className="space-y-1 border-t p-2">
-                                                    {fields
-                                                        .filter((field) =>
-                                                            field.id !== selectedField.id && canReceiveAutoFill(field)
-                                                        )
-                                                        .map((field) => {
-                                                            const rule = selectedField.autoFillRules?.find(
-                                                                (item) => item.sourceValue === option
-                                                            );
-                                                            const checked = rule?.targetFieldIds.includes(field.id) === true;
+                                    <div className="rounded border border-blue-200 bg-blue-50 p-3">
+                                        <label className="text-xs font-bold">
+                                            OPTION-SPECIFIC AUTO-FILL
+                                        </label>
+                                        <p className="mt-1 text-[10px] text-gray-600">
+                                            Choose which fields each individual option should fill with that option's value.
+                                        </p>
+                                        <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">
+                                            {resolvedFieldOptions(selectedField).map((option) => (
+                                                <details key={option} className="rounded border bg-white">
+                                                    <summary className="cursor-pointer px-2 py-2 text-xs font-bold">
+                                                        {option}
+                                                        <span className="ml-1 font-normal text-gray-500">
+                                                            ({selectedField.autoFillRules?.find((rule) => rule.sourceValue === option)?.targetFieldIds.length || 0} targets)
+                                                        </span>
+                                                    </summary>
+                                                    <div className="space-y-1 border-t p-2">
+                                                        {fields
+                                                            .filter((field) =>
+                                                                field.id !== selectedField.id && canReceiveAutoFill(field)
+                                                            )
+                                                            .map((field) => {
+                                                                const rule = selectedField.autoFillRules?.find(
+                                                                    (item) => item.sourceValue === option
+                                                                );
+                                                                const checked = rule?.targetFieldIds.includes(field.id) === true;
 
-                                                            return (
-                                                                <label key={field.id} className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 text-xs hover:bg-blue-50">
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        className="mt-0.5"
-                                                                        checked={checked}
-                                                                        onChange={(event) => {
-                                                                            const rules = [...(selectedField.autoFillRules || [])];
-                                                                            const ruleIndex = rules.findIndex(
-                                                                                (item) => item.sourceValue === option
-                                                                            );
-                                                                            const currentTargets = ruleIndex >= 0
-                                                                                ? rules[ruleIndex].targetFieldIds
-                                                                                : [];
-                                                                            const targetFieldIds = event.target.checked
-                                                                                ? Array.from(new Set([...currentTargets, field.id]))
-                                                                                : currentTargets.filter((id) => id !== field.id);
+                                                                return (
+                                                                    <label key={field.id} className="flex cursor-pointer items-start gap-2 rounded px-1 py-1 text-xs hover:bg-blue-50">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            className="mt-0.5"
+                                                                            checked={checked}
+                                                                            onChange={(event) => {
+                                                                                const rules = [...(selectedField.autoFillRules || [])];
+                                                                                const ruleIndex = rules.findIndex(
+                                                                                    (item) => item.sourceValue === option
+                                                                                );
+                                                                                const currentTargets = ruleIndex >= 0
+                                                                                    ? rules[ruleIndex].targetFieldIds
+                                                                                    : [];
+                                                                                const targetFieldIds = event.target.checked
+                                                                                    ? Array.from(new Set([...currentTargets, field.id]))
+                                                                                    : currentTargets.filter((id) => id !== field.id);
 
-                                                                            if (ruleIndex >= 0) {
-                                                                                if (targetFieldIds.length) {
-                                                                                    rules[ruleIndex] = { sourceValue: option, targetFieldIds };
-                                                                                } else {
-                                                                                    rules.splice(ruleIndex, 1);
+                                                                                if (ruleIndex >= 0) {
+                                                                                    if (targetFieldIds.length) {
+                                                                                        rules[ruleIndex] = { sourceValue: option, targetFieldIds };
+                                                                                    } else {
+                                                                                        rules.splice(ruleIndex, 1);
+                                                                                    }
+                                                                                } else if (targetFieldIds.length) {
+                                                                                    rules.push({ sourceValue: option, targetFieldIds });
                                                                                 }
-                                                                            } else if (targetFieldIds.length) {
-                                                                                rules.push({ sourceValue: option, targetFieldIds });
-                                                                            }
 
-                                                                            updateField(selectedField.id, { autoFillRules: rules });
-                                                                            setSelectedField({ ...selectedField, autoFillRules: rules });
-                                                                        }}
-                                                                    />
-                                                                    <span className="font-semibold">{autoFillTargetLabel(field)}</span>
-                                                                    <span className="text-[10px] text-gray-400">({field.type})</span>
-                                                                </label>
-                                                            );
-                                                        })}
+                                                                                updateField(selectedField.id, { autoFillRules: rules });
+                                                                                setSelectedField({ ...selectedField, autoFillRules: rules });
+                                                                            }}
+                                                                        />
+                                                                        <span className="font-semibold">{autoFillTargetLabel(field)}</span>
+                                                                        <span className="text-[10px] text-gray-400">({field.type})</span>
+                                                                    </label>
+                                                                );
+                                                            })}
+                                                    </div>
+                                                </details>
+                                            ))}
+                                            {fields.filter((field) => field.id !== selectedField.id && canReceiveAutoFill(field)).length === 0 && (
+                                                <div className="text-[10px] text-gray-500">
+                                                    Add another fillable field to use as a target.
                                                 </div>
-                                            </details>
-                                        ))}
-                                        {fields.filter((field) => field.id !== selectedField.id && canReceiveAutoFill(field)).length === 0 && (
-                                            <div className="text-[10px] text-gray-500">
-                                                Add another fillable field to use as a target.
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            )}
+                                )}
 
                             {!selectedField.pageFooter && canReceiveAutoFill(selectedField) && (
                                 <div className="rounded border border-emerald-200 bg-emerald-50 p-3">
@@ -3663,133 +3663,133 @@ export default function JobFormBuilderPage({
                                 </div>
                             )}
                             {!selectedField.pageFooter && (
-                            <div className="grid grid-cols-2 gap-2">
+                                <div className="grid grid-cols-2 gap-2">
 
-                                <div>
+                                    <div>
 
-                                    <label className="text-xs font-bold">
-                                        X POSITION
-                                    </label>
+                                        <label className="text-xs font-bold">
+                                            X POSITION
+                                        </label>
 
-                                    <input
-                                        type="number"
-                                        className="w-full border p-2"
-                                        value={selectedField.x}
-                                        onChange={(e) => {
+                                        <input
+                                            type="number"
+                                            className="w-full border p-2"
+                                            value={selectedField.x}
+                                            onChange={(e) => {
 
-                                            const value =
-                                                Number(e.target.value);
+                                                const value =
+                                                    Number(e.target.value);
 
-                                            updateField(
-                                                selectedField.id,
-                                                {
+                                                updateField(
+                                                    selectedField.id,
+                                                    {
+                                                        x: value,
+                                                    }
+                                                );
+
+                                                setSelectedField({
+                                                    ...selectedField,
                                                     x: value,
-                                                }
-                                            );
+                                                });
+                                            }}
+                                        />
 
-                                            setSelectedField({
-                                                ...selectedField,
-                                                x: value,
-                                            });
-                                        }}
-                                    />
+                                    </div>
 
-                                </div>
+                                    <div>
 
-                                <div>
+                                        <label className="text-xs font-bold">
+                                            Y POSITION
+                                        </label>
 
-                                    <label className="text-xs font-bold">
-                                        Y POSITION
-                                    </label>
+                                        <input
+                                            type="number"
+                                            className="w-full border p-2"
+                                            value={selectedField.y}
+                                            onChange={(e) => {
 
-                                    <input
-                                        type="number"
-                                        className="w-full border p-2"
-                                        value={selectedField.y}
-                                        onChange={(e) => {
+                                                const value =
+                                                    Number(e.target.value);
 
-                                            const value =
-                                                Number(e.target.value);
+                                                updateField(
+                                                    selectedField.id,
+                                                    {
+                                                        y: value,
+                                                    }
+                                                );
 
-                                            updateField(
-                                                selectedField.id,
-                                                {
+                                                setSelectedField({
+                                                    ...selectedField,
                                                     y: value,
-                                                }
-                                            );
+                                                });
+                                            }}
+                                        />
 
-                                            setSelectedField({
-                                                ...selectedField,
-                                                y: value,
-                                            });
-                                        }}
-                                    />
+                                    </div>
 
-                                </div>
+                                    <div>
 
-                                <div>
+                                        <label className="text-xs font-bold">
+                                            WIDTH
+                                        </label>
 
-                                    <label className="text-xs font-bold">
-                                        WIDTH
-                                    </label>
+                                        <input
+                                            type="number"
+                                            className="w-full border p-2"
+                                            value={selectedField.width}
+                                            onChange={(e) => {
 
-                                    <input
-                                        type="number"
-                                        className="w-full border p-2"
-                                        value={selectedField.width}
-                                        onChange={(e) => {
+                                                const value =
+                                                    Number(e.target.value);
 
-                                            const value =
-                                                Number(e.target.value);
+                                                updateField(
+                                                    selectedField.id,
+                                                    {
+                                                        width: value,
+                                                    }
+                                                );
 
-                                            updateField(
-                                                selectedField.id,
-                                                {
+                                                setSelectedField({
+                                                    ...selectedField,
                                                     width: value,
-                                                }
-                                            );
+                                                });
+                                            }}
+                                        />
 
-                                            setSelectedField({
-                                                ...selectedField,
-                                                width: value,
-                                            });
-                                        }}
-                                    />
+                                    </div>
 
-                                </div>
+                                    <div>
 
-                                <div>
+                                        <label className="text-xs font-bold">
+                                            HEIGHT
+                                        </label>
 
-                                    <label className="text-xs font-bold">
-                                        HEIGHT
-                                    </label>
+                                        <input
+                                            type="number"
+                                            className="w-full border p-2"
+                                            value={selectedField.height}
+                                            onChange={(e) => {
 
-                                    <input
-                                        type="number"
-                                        className="w-full border p-2"
-                                        value={selectedField.height}
-                                        onChange={(e) => {
+                                                const value =
+                                                    Number(e.target.value);
 
-                                            const value =
-                                                Number(e.target.value);
+                                                updateField(
+                                                    selectedField.id,
+                                                    {
+                                                        height: value,
+                                                    }
+                                                );
 
-                                            updateField(
-                                                selectedField.id,
-                                                {
+                                                setSelectedField({
+                                                    ...selectedField,
                                                     height: value,
-                                                }
-                                            );
+                                                });
+                                            }}
+                                        />
 
-                                            setSelectedField({
-                                                ...selectedField,
-                                                height: value,
-                                            });
-                                        }}
-                                    />
+                                    </div>
 
                                 </div>
-
-                            </div>
                             )}
 
                         </div>

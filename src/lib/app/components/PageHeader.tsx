@@ -47,7 +47,7 @@ export default function PageHeader() {
       return "GRV";
     }
 
-    return "FleetFix Pro";
+    return "JobTorq";
   }
 
   function getSubTitle() {
@@ -88,7 +88,7 @@ export default function PageHeader() {
       return "GOODS RECEIVED";
     }
 
-    return "FLEETFIX";
+    return "JOBTORQ";
   }
 
   return (

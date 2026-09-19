@@ -616,7 +616,7 @@ export default function InventoryDetailsPage({
       );
 
 
-     
+
       stockLocations.forEach(
         (location: any) => {
 
@@ -908,32 +908,32 @@ export default function InventoryDetailsPage({
       ? "REQ"
       : rawMovementType === "JOB" || ["JOB", "JOB MATERIAL CORRECTION"].includes(rawReferenceType) || rawType === "JOB"
         ? "JOB"
-      : rawMovementType === "DEREQ" || ["DEREQ", "DEREQUISITION", "PARTS_RETURN"].includes(rawReferenceType) || ["DEREQ", "DEREQUISITION"].includes(rawType)
-        ? "DEREQ"
-        : rawMovementType === "GRV" || rawType === "GRV" || rawReferenceType === "GRV"
-          ? "GRV"
-          : rawMovementType === "STOCKTAKE" || rawType === "STOCKTAKE" || rawReferenceType === "STOCKTAKE"
-            ? "STOCKTAKE"
-            : rawType === "OUT" && isJobReference
-              ? "JOB"
-              : rawType === "IN" && isJobReference
-                ? "DEREQ"
-                : "ADJUSTMENT";
+        : rawMovementType === "DEREQ" || ["DEREQ", "DEREQUISITION", "PARTS_RETURN"].includes(rawReferenceType) || ["DEREQ", "DEREQUISITION"].includes(rawType)
+          ? "DEREQ"
+          : rawMovementType === "GRV" || rawType === "GRV" || rawReferenceType === "GRV"
+            ? "GRV"
+            : rawMovementType === "STOCKTAKE" || rawType === "STOCKTAKE" || rawReferenceType === "STOCKTAKE"
+              ? "STOCKTAKE"
+              : rawType === "OUT" && isJobReference
+                ? "JOB"
+                : rawType === "IN" && isJobReference
+                  ? "DEREQ"
+                  : "ADJUSTMENT";
     const stockOut = rawType === "OUT" || Number(movement.adjustment) < 0;
     const transactionId = String(movement.sourceDocumentId || movement.id || "").replace(/^\d+-/, "");
     const documentNumber = type === "REQ"
       ? movement.requisitionNumber || movement.documentNumber || "—"
       : type === "JOB"
         ? "—"
-      : type === "DEREQ"
-        ? movement.derequisitionNumber || movement.documentNumber || (movement.partsReturnId ? `DREQ-${String(movement.partsReturnId).slice(0, 8).toUpperCase()}` : "—")
-        : type === "GRV"
-          ? movement.grvNumber || (movement.grvBatchId ? `GRV-${String(movement.grvBatchId).slice(0, 8).toUpperCase()}` : `GRV-${transactionId.slice(0, 8).toUpperCase()}`)
-          : type === "STOCKTAKE"
-            ? "—"
-            : type === "ADJUSTMENT"
+        : type === "DEREQ"
+          ? movement.derequisitionNumber || movement.documentNumber || (movement.partsReturnId ? `DREQ-${String(movement.partsReturnId).slice(0, 8).toUpperCase()}` : "—")
+          : type === "GRV"
+            ? movement.grvNumber || (movement.grvBatchId ? `GRV-${String(movement.grvBatchId).slice(0, 8).toUpperCase()}` : `GRV-${transactionId.slice(0, 8).toUpperCase()}`)
+            : type === "STOCKTAKE"
               ? "—"
-              : movement.documentNumber || movement.transferNumber || transactionId || "—";
+              : type === "ADJUSTMENT"
+                ? "—"
+                : movement.documentNumber || movement.transferNumber || transactionId || "—";
     const documentHref = type === "REQ" && movement.partsRequestId
       ? `/stock-picking/${movement.partsRequestId}`
       : type === "DEREQ" && movement.partsReturnId
@@ -993,7 +993,7 @@ export default function InventoryDetailsPage({
     const addEvent = (date: any, type: string, location: string, reference: string, user: string) => {
       if (date) rows.push({ id: `${serial.id}-${type}-${date?.seconds || type}`, serialNumber: serial.serialNumber || serial.id, date, type, location: location || "—", reference: reference || "—", user: user || "—" });
     };
-    addEvent(serial.receivedAt || serial.createdAt, "RECEIVED", serial.locationName || serial.locationId, serial.documentNumber || serial.purchaseOrderId, serial.receivedByName || "FleetFix User");
+    addEvent(serial.receivedAt || serial.createdAt, "RECEIVED", serial.locationName || serial.locationId, serial.documentNumber || serial.purchaseOrderId, serial.receivedByName || "JobTorq User");
     addEvent(serial.allocatedAt, "ALLOCATED", serial.locationName || serial.locationId, serial.jobNumber || serial.jobId, serial.allocatedByName);
     addEvent(serial.usedAt, "USED", serial.usedLocationName || serial.usedLocationId, serial.usedJobNumber || serial.usedJobId, serial.usedByName);
     addEvent(serial.returnedAt, "RETURNED", serial.returnedLocationName || serial.locationName || serial.locationId, serial.returnReference || serial.jobNumber || serial.jobId, serial.returnedByName);
@@ -1257,86 +1257,73 @@ export default function InventoryDetailsPage({
                       Information
                     </h3>
 
-                <SearchableLookup
-                  id="inventory-brand"
-                  label="Brand"
-                  value={item.brand || ""}
-                  options={brands}
-                  onChange={(brand) =>
-                    setItem({
-                      ...item,
-                      brand,
-                    })
-                  }
-                  onAdd={() =>
-                    addLookupOption(
-                      "inventory_brands",
-                      "Brand",
-                      (brand) =>
+                    <SearchableLookup
+                      id="inventory-brand"
+                      label="Brand"
+                      value={item.brand || ""}
+                      options={brands}
+                      onChange={(brand) =>
                         setItem({
                           ...item,
                           brand,
                         })
-                    )
-                  }
-                />
+                      }
+                      onAdd={() =>
+                        addLookupOption(
+                          "inventory_brands",
+                          "Brand",
+                          (brand) =>
+                            setItem({
+                              ...item,
+                              brand,
+                            })
+                        )
+                      }
+                    />
 
-                <SearchableLookup
-                  id="inventory-category"
-                  label="Category"
-                  value={item.category || ""}
-                  options={categories}
-                  onChange={(category) =>
-                    setItem({
-                      ...item,
-                      category,
-                    })
-                  }
-                  onAdd={() =>
-                    addLookupOption(
-                      "inventory_categories",
-                      "Category",
-                      (category) =>
+                    <SearchableLookup
+                      id="inventory-category"
+                      label="Category"
+                      value={item.category || ""}
+                      options={categories}
+                      onChange={(category) =>
                         setItem({
                           ...item,
                           category,
                         })
-                    )
-                  }
-                />
+                      }
+                      onAdd={() =>
+                        addLookupOption(
+                          "inventory_categories",
+                          "Category",
+                          (category) =>
+                            setItem({
+                              ...item,
+                              category,
+                            })
+                        )
+                      }
+                    />
 
-                {customFieldDefinitions.map((field) => {
-                  const value =
-                    item.customFields?.[field.id] ?? "";
-                  const isBinLocation =
-                    field.label
-                      .trim()
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]/g, "") === "binlocation";
+                    {customFieldDefinitions.map((field) => {
+                      const value =
+                        item.customFields?.[field.id] ?? "";
+                      const isBinLocation =
+                        field.label
+                          .trim()
+                          .toLowerCase()
+                          .replace(/[^a-z0-9]/g, "") === "binlocation";
 
-                  if (isBinLocation) {
-                    return (
-                      <SearchableLookup
-                        key={field.id}
-                        id={`custom-field-${field.id}`}
-                        label={field.label}
-                        value={String(value)}
-                        options={binLocations}
-                        required={field.required}
-                        onChange={(binLocation) =>
-                          setItem({
-                            ...item,
-                            customFields: {
-                              ...item.customFields,
-                              [field.id]: binLocation,
-                            },
-                          })
-                        }
-                        onAdd={() =>
-                          addLookupOption(
-                            "inventory_bin_locations",
-                            "Bin Location",
-                            (binLocation) =>
+                      if (isBinLocation) {
+                        return (
+                          <SearchableLookup
+                            key={field.id}
+                            id={`custom-field-${field.id}`}
+                            label={field.label}
+                            value={String(value)}
+                            options={binLocations}
+                            required={field.required}
+                            onChange={(binLocation) =>
                               setItem({
                                 ...item,
                                 customFields: {
@@ -1344,46 +1331,59 @@ export default function InventoryDetailsPage({
                                   [field.id]: binLocation,
                                 },
                               })
-                          )
-                        }
-                      />
-                    );
-                  }
+                            }
+                            onAdd={() =>
+                              addLookupOption(
+                                "inventory_bin_locations",
+                                "Bin Location",
+                                (binLocation) =>
+                                  setItem({
+                                    ...item,
+                                    customFields: {
+                                      ...item.customFields,
+                                      [field.id]: binLocation,
+                                    },
+                                  })
+                              )
+                            }
+                          />
+                        );
+                      }
 
-                  return (
-                    <div key={field.id}>
-                      <label
-                        htmlFor={`custom-field-${field.id}`}
-                        className="
+                      return (
+                        <div key={field.id}>
+                          <label
+                            htmlFor={`custom-field-${field.id}`}
+                            className="
                           mb-2
                           block
                           text-sm
                           font-bold
                           text-gray-700
                         "
-                      >
-                        {field.label}
-                        {field.required && (
-                          <span className="ml-1 text-red-500">*</span>
-                        )}
-                      </label>
+                          >
+                            {field.label}
+                            {field.required && (
+                              <span className="ml-1 text-red-500">*</span>
+                            )}
+                          </label>
 
-                      {field.type === "textarea" ? (
-                        <textarea
-                          id={`custom-field-${field.id}`}
-                          value={value}
-                          required={field.required}
-                          onChange={(event) =>
-                            setItem({
-                              ...item,
-                              customFields: {
-                                ...item.customFields,
-                                [field.id]: event.target.value,
-                              },
-                            })
-                          }
-                          rows={4}
-                          className="
+                          {field.type === "textarea" ? (
+                            <textarea
+                              id={`custom-field-${field.id}`}
+                              value={value}
+                              required={field.required}
+                              onChange={(event) =>
+                                setItem({
+                                  ...item,
+                                  customFields: {
+                                    ...item.customFields,
+                                    [field.id]: event.target.value,
+                                  },
+                                })
+                              }
+                              rows={4}
+                              className="
                             w-full
                             rounded-2xl
                             border-2
@@ -1393,27 +1393,27 @@ export default function InventoryDetailsPage({
                             outline-none
                             focus:border-blue-500
                           "
-                        />
-                      ) : (
-                        <input
-                          id={`custom-field-${field.id}`}
-                          type={field.type}
-                          value={value}
-                          required={field.required}
-                          onChange={(event) =>
-                            setItem({
-                              ...item,
-                              customFields: {
-                                ...item.customFields,
-                                [field.id]:
-                                  field.type === "number" &&
-                                  event.target.value !== ""
-                                    ? Number(event.target.value)
-                                    : event.target.value,
-                              },
-                            })
-                          }
-                          className="
+                            />
+                          ) : (
+                            <input
+                              id={`custom-field-${field.id}`}
+                              type={field.type}
+                              value={value}
+                              required={field.required}
+                              onChange={(event) =>
+                                setItem({
+                                  ...item,
+                                  customFields: {
+                                    ...item.customFields,
+                                    [field.id]:
+                                      field.type === "number" &&
+                                        event.target.value !== ""
+                                        ? Number(event.target.value)
+                                        : event.target.value,
+                                  },
+                                })
+                              }
+                              className="
                             h-14
                             w-full
                             rounded-2xl
@@ -1423,15 +1423,15 @@ export default function InventoryDetailsPage({
                             outline-none
                             focus:border-blue-500
                           "
-                        />
-                      )}
-                    </div>
-                  );
-                })}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
 
                   </div>
 
-                <div className="
+                  <div className="
                   space-y-4
                   rounded-2xl
                   border
@@ -1446,44 +1446,44 @@ export default function InventoryDetailsPage({
                   md:row-span-20
                   md:mt-0
                 ">
-                  <h3 className="text-base font-black text-gray-900">
-                    Pricing (Excluding VAT)
-                  </h3>
+                    <h3 className="text-base font-black text-gray-900">
+                      Pricing (Excluding VAT)
+                    </h3>
 
-                  <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-sm font-bold">
-                    <input type="checkbox" checked={item.serialNumberTracking === true} onChange={(event) => setItem({ ...item, serialNumberTracking: event.target.checked })} className="h-5 w-5 accent-blue-600" />
-                    Track individual serial numbers
-                  </label>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-bold text-gray-700">
-                      Cost Price Excl.
+                    <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 text-sm font-bold">
+                      <input type="checkbox" checked={item.serialNumberTracking === true} onChange={(event) => setItem({ ...item, serialNumberTracking: event.target.checked })} className="h-5 w-5 accent-blue-600" />
+                      Track individual serial numbers
                     </label>
 
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.costPrice ?? 0}
-                      onChange={(event) => {
-                        const costPrice = Number(event.target.value);
-                        const markup = item.markupPercent;
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-gray-700">
+                        Cost Price Excl.
+                      </label>
 
-                        setItem({
-                          ...item,
-                          costPrice,
-                          sellPrice:
-                            typeof markup === "number"
-                              ? Number(
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.costPrice ?? 0}
+                        onChange={(event) => {
+                          const costPrice = Number(event.target.value);
+                          const markup = item.markupPercent;
+
+                          setItem({
+                            ...item,
+                            costPrice,
+                            sellPrice:
+                              typeof markup === "number"
+                                ? Number(
                                   (
                                     costPrice *
                                     (1 + markup / 100)
                                   ).toFixed(2)
                                 )
-                              : item.sellPrice,
-                        });
-                      }}
-                      className="
+                                : item.sellPrice,
+                          });
+                        }}
+                        className="
                         h-14
                         w-full
                         rounded-2xl
@@ -1494,43 +1494,43 @@ export default function InventoryDetailsPage({
                         outline-none
                         focus:border-blue-500
                       "
-                    />
-                  </div>
+                      />
+                    </div>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-bold text-gray-700">
-                      Markup %
-                    </label>
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-gray-700">
+                        Markup %
+                      </label>
 
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="Enter markup percentage"
-                        value={item.markupPercent ?? ""}
-                        onChange={(event) => {
-                          const inputValue = event.target.value;
-                          const markupPercent =
-                            inputValue === ""
-                              ? null
-                              : Number(inputValue);
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Enter markup percentage"
+                          value={item.markupPercent ?? ""}
+                          onChange={(event) => {
+                            const inputValue = event.target.value;
+                            const markupPercent =
+                              inputValue === ""
+                                ? null
+                                : Number(inputValue);
 
-                          setItem({
-                            ...item,
-                            markupPercent,
-                            sellPrice:
-                              markupPercent === null
-                                ? item.sellPrice
-                                : Number(
+                            setItem({
+                              ...item,
+                              markupPercent,
+                              sellPrice:
+                                markupPercent === null
+                                  ? item.sellPrice
+                                  : Number(
                                     (
                                       Number(item.costPrice || 0) *
                                       (1 + markupPercent / 100)
                                     ).toFixed(2)
                                   ),
-                          });
-                        }}
-                        className="
+                            });
+                          }}
+                          className="
                           h-14
                           w-full
                           rounded-2xl
@@ -1542,8 +1542,8 @@ export default function InventoryDetailsPage({
                           outline-none
                           focus:border-blue-500
                         "
-                      />
-                      <span className="
+                        />
+                        <span className="
                         pointer-events-none
                         absolute
                         right-5
@@ -1552,26 +1552,25 @@ export default function InventoryDetailsPage({
                         font-black
                         text-gray-400
                       ">
-                        %
-                      </span>
+                          %
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Sell price = cost price + markup percentage.
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs text-gray-500">
-                      Sell price = cost price + markup percentage.
-                    </p>
-                  </div>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-bold text-gray-700">
-                      Sell Price Excl.
-                    </label>
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-gray-700">
+                        Sell Price Excl.
+                      </label>
 
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.sellPrice ?? 0}
-                      onChange={(event) =>
-                        {
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={item.sellPrice ?? 0}
+                        onChange={(event) => {
                           const sellPrice = Number(
                             event.target.value
                           );
@@ -1585,17 +1584,17 @@ export default function InventoryDetailsPage({
                             markupPercent:
                               costPrice > 0
                                 ? Number(
-                                    (
-                                      ((sellPrice - costPrice) /
-                                        costPrice) *
-                                      100
-                                    ).toFixed(2)
-                                  )
+                                  (
+                                    ((sellPrice - costPrice) /
+                                      costPrice) *
+                                    100
+                                  ).toFixed(2)
+                                )
                                 : item.markupPercent,
                           });
                         }
-                      }
-                      className="
+                        }
+                        className="
                         h-14
                         w-full
                         rounded-2xl
@@ -1607,96 +1606,96 @@ export default function InventoryDetailsPage({
                         outline-none
                         focus:border-blue-500
                       "
-                    />
-                    <p className="mt-2 text-xs text-gray-500">
-                      Manual sell price entry updates the markup percentage.
-                    </p>
-                  </div>
-                </div>
-
-                {false && ((item: InventoryItem) => (
-                <div>
-                {customFieldDefinitions.map((field) => {
-                  const value =
-                    item.customFields?.[field.id] ?? "";
-                  const isBinLocation =
-                    field.label
-                      .trim()
-                      .toLowerCase()
-                      .replace(/[^a-z0-9]/g, "") === "binlocation";
-
-                  if (isBinLocation) {
-                    return (
-                      <SearchableLookup
-                        key={field.id}
-                        id={`custom-field-${field.id}`}
-                        label={field.label}
-                        value={String(value)}
-                        options={binLocations}
-                        required={field.required}
-                        onChange={(binLocation) =>
-                          setItem({
-                            ...item,
-                            customFields: {
-                              ...item.customFields,
-                              [field.id]: binLocation,
-                            },
-                          })
-                        }
-                        onAdd={() =>
-                          addLookupOption(
-                            "inventory_bin_locations",
-                            "Bin Location",
-                            (binLocation) =>
-                              setItem({
-                                ...item,
-                                customFields: {
-                                  ...item.customFields,
-                                  [field.id]: binLocation,
-                                },
-                              })
-                          )
-                        }
                       />
-                    );
-                  }
+                      <p className="mt-2 text-xs text-gray-500">
+                        Manual sell price entry updates the markup percentage.
+                      </p>
+                    </div>
+                  </div>
 
-                  return (
-                    <div
-                      key={field.id}
-                    >
-                      <label
-                        htmlFor={`custom-field-${field.id}`}
-                        className="
+                  {false && ((item: InventoryItem) => (
+                    <div>
+                      {customFieldDefinitions.map((field) => {
+                        const value =
+                          item.customFields?.[field.id] ?? "";
+                        const isBinLocation =
+                          field.label
+                            .trim()
+                            .toLowerCase()
+                            .replace(/[^a-z0-9]/g, "") === "binlocation";
+
+                        if (isBinLocation) {
+                          return (
+                            <SearchableLookup
+                              key={field.id}
+                              id={`custom-field-${field.id}`}
+                              label={field.label}
+                              value={String(value)}
+                              options={binLocations}
+                              required={field.required}
+                              onChange={(binLocation) =>
+                                setItem({
+                                  ...item,
+                                  customFields: {
+                                    ...item.customFields,
+                                    [field.id]: binLocation,
+                                  },
+                                })
+                              }
+                              onAdd={() =>
+                                addLookupOption(
+                                  "inventory_bin_locations",
+                                  "Bin Location",
+                                  (binLocation) =>
+                                    setItem({
+                                      ...item,
+                                      customFields: {
+                                        ...item.customFields,
+                                        [field.id]: binLocation,
+                                      },
+                                    })
+                                )
+                              }
+                            />
+                          );
+                        }
+
+                        return (
+                          <div
+                            key={field.id}
+                          >
+                            <label
+                              htmlFor={`custom-field-${field.id}`}
+                              className="
                           mb-2
                           block
                           text-sm
                           font-bold
                           text-gray-700
                         "
-                      >
-                        {field.label}
-                        {field.required && (
-                          <span className="ml-1 text-red-500">*</span>
-                        )}
-                      </label>
+                            >
+                              {field.label}
+                              {field.required && (
+                                <span className="ml-1 text-red-500">*</span>
+                              )}
+                            </label>
 
-                      {field.type === "textarea" ? (
-                        <textarea
-                          id={`custom-field-${field.id}`}
-                          value={value}
-                          required={field.required}
-                          onChange={(event) =>
-                            setItem({
-                              ...item,
-                              customFields: {
-                                ...item.customFields,
-                                [field.id]: event.target.value,
-                              },
-                            })
-                          }
-                          rows={4}
-                          className="
+                            {field.type === "textarea" ? (
+                              <textarea
+                                id={`custom-field-${field.id}`}
+                                value={value}
+                                required={field.required}
+                                onChange={(event) =>
+                                  setItem({
+                                    ...item,
+                                    customFields: {
+                                      ...item.customFields,
+                                      [field.id]: event.target.value,
+                                    },
+                                  })
+                                }
+                                rows={4}
+                                className="
                             w-full
                             rounded-2xl
                             border-2
@@ -1706,27 +1705,27 @@ export default function InventoryDetailsPage({
                             outline-none
                             focus:border-blue-500
                           "
-                        />
-                      ) : (
-                        <input
-                          id={`custom-field-${field.id}`}
-                          type={field.type}
-                          value={value}
-                          required={field.required}
-                          onChange={(event) =>
-                            setItem({
-                              ...item,
-                              customFields: {
-                                ...item.customFields,
-                                [field.id]:
-                                  field.type === "number" &&
-                                  event.target.value !== ""
-                                    ? Number(event.target.value)
-                                    : event.target.value,
-                              },
-                            })
-                          }
-                          className="
+                              />
+                            ) : (
+                              <input
+                                id={`custom-field-${field.id}`}
+                                type={field.type}
+                                value={value}
+                                required={field.required}
+                                onChange={(event) =>
+                                  setItem({
+                                    ...item,
+                                    customFields: {
+                                      ...item.customFields,
+                                      [field.id]:
+                                        field.type === "number" &&
+                                          event.target.value !== ""
+                                          ? Number(event.target.value)
+                                          : event.target.value,
+                                    },
+                                  })
+                                }
+                                className="
                             h-14
                             w-full
                             rounded-2xl
@@ -1736,13 +1735,13 @@ export default function InventoryDetailsPage({
                             outline-none
                             focus:border-blue-500
                           "
-                        />
-                      )}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-                </div>
-                ))(item!)}
+                  ))(item!)}
                 </div>
 
               </div>
@@ -1759,22 +1758,22 @@ export default function InventoryDetailsPage({
               xl:grid-cols-1
               xl:self-start
             ">
-            {/* STOCK */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+              {/* STOCK */}
+              <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
 
-              <h2 className="text-xl font-black text-gray-900 mb-4">
-                Stock Location
-              </h2>
+                <h2 className="text-xl font-black text-gray-900 mb-4">
+                  Stock Location
+                </h2>
 
-              <div className="space-y-3">
+                <div className="space-y-3">
 
-                {stockLocations.map(
-                  (location: any) => (
+                  {stockLocations.map(
+                    (location: any) => (
 
 
-                    <div
-                      key={location.id}
-                      className="
+                      <div
+                        key={location.id}
+                        className="
                         grid
                         grid-cols-[minmax(0,1fr)_110px_150px]
                         items-center
@@ -1783,37 +1782,37 @@ export default function InventoryDetailsPage({
                         border-gray-100
                         pb-3
                       "
-                    >
+                      >
 
-                      <div className="font-bold text-gray-700">
-                        {location.type === "rav"
-                          ? "🚚 "
-                          : "🏪 "
-                        }
+                        <div className="font-bold text-gray-700">
+                          {location.type === "rav"
+                            ? "🚚 "
+                            : "🏪 "
+                          }
 
-                        {location.name}
+                          {location.name}
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-[10px] font-black uppercase text-gray-400">Current Qty</div>
+                          <div className="mt-1 font-black text-gray-700">{Number(resolvedStock[location.id] || 0)}</div>
+                        </div>
+
+                        <label className="block">
+                          <span className="text-[10px] font-black uppercase text-gray-400">Minimum Qty</span>
+                          <input type="number" min="0" value={item.minimumStockByLocation?.[location.id] ?? ""} placeholder="Optional" onChange={(event) => setItem({ ...item, minimumStockByLocation: { ...item.minimumStockByLocation, [location.id]: event.target.value === "" ? null : Math.max(0, Number(event.target.value)) } })} className="mt-1 h-10 w-full rounded-xl border-2 border-gray-200 px-3 text-right font-bold" />
+                        </label>
+
                       </div>
+                    )
+                  )}
 
-                      <div className="text-right">
-                        <div className="text-[10px] font-black uppercase text-gray-400">Current Qty</div>
-                        <div className="mt-1 font-black text-gray-700">{Number(resolvedStock[location.id] || 0)}</div>
-                      </div>
-
-                      <label className="block">
-                        <span className="text-[10px] font-black uppercase text-gray-400">Minimum Qty</span>
-                        <input type="number" min="0" value={item.minimumStockByLocation?.[location.id] ?? ""} placeholder="Optional" onChange={(event) => setItem({ ...item, minimumStockByLocation: { ...item.minimumStockByLocation, [location.id]: event.target.value === "" ? null : Math.max(0, Number(event.target.value)) } })} className="mt-1 h-10 w-full rounded-xl border-2 border-gray-200 px-3 text-right font-bold" />
-                      </label>
-
-                    </div>
-                  )
-                )}
+                </div>
 
               </div>
 
-            </div>
-
-            {/* QR */}
-            <div className="
+              {/* QR */}
+              <div className="
               bg-white
               border
               border-gray-200
@@ -1821,12 +1820,12 @@ export default function InventoryDetailsPage({
               p-5
               shadow-sm
             ">
-              <h2 className="mb-4 text-xl font-black text-gray-900">
-                QR Code
-              </h2>
+                <h2 className="mb-4 text-xl font-black text-gray-900">
+                  QR Code
+                </h2>
 
-              <div className="flex justify-center">
-                <div className="
+                <div className="flex justify-center">
+                  <div className="
                   h-40
                   w-40
                   overflow-hidden
@@ -1836,19 +1835,19 @@ export default function InventoryDetailsPage({
                   bg-white
                   p-3
                 ">
-                  <Image
-                    src={
-                      item.qrCodeUrl ||
-                      "https://placehold.co/300x300/png"
-                    }
-                    alt="QR"
-                    width={200}
-                    height={200}
-                    className="h-full w-full object-contain"
-                  />
+                    <Image
+                      src={
+                        item.qrCodeUrl ||
+                        "https://placehold.co/300x300/png"
+                      }
+                      alt="QR"
+                      width={200}
+                      height={200}
+                      className="h-full w-full object-contain"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
             </div>
 
           </div>
@@ -1856,100 +1855,100 @@ export default function InventoryDetailsPage({
           {/* MOVEMENT HISTORY */}
 
           <div className="order-5 grid grid-cols-1 gap-6 xl:col-span-2 xl:row-start-4 xl:grid-cols-2">
-          <div className={`rounded-3xl border bg-white p-6 shadow-sm ${item.serialNumberTracking === true ? "xl:col-span-1" : "xl:col-span-2"}`}>
+            <div className={`rounded-3xl border bg-white p-6 shadow-sm ${item.serialNumberTracking === true ? "xl:col-span-1" : "xl:col-span-2"}`}>
 
 
-            <h2 className="
+              <h2 className="
 text-2xl
 font-black
 mb-6
 ">
 
-              📜 Movement History
+                📜 Movement History
 
-            </h2>
-
-
-            <div className="overflow-x-auto">
-            <table className="w-full min-w-[1040px] table-fixed text-left text-xs">
-
-              <thead>
-
-                <tr>
-
-                  <th className="w-[13%] px-3 py-2 align-bottom">Job Number</th>
-                  <th className="w-[14%] px-3 py-2 align-bottom">Date</th>
-                  <th className="w-[9%] px-3 py-2 align-bottom">Type</th>
-                  <th className="w-[6%] px-3 py-2 text-right align-bottom">Qty</th>
-                  <th className="w-[14%] px-3 py-2 align-bottom">Location</th>
-                  <th className="w-[16%] px-3 py-2 align-bottom">Document Number</th>
-                  <th className="w-[15%] px-3 py-2 align-bottom">Reference</th>
-                  <th className="w-[13%] px-3 py-2 align-bottom">User</th>
-
-                </tr>
-
-              </thead>
+              </h2>
 
 
-              <tbody>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1040px] table-fixed text-left text-xs">
 
-                {movementDisplayRows.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-gray-500">
-                      No movement history recorded for this inventory item.
-                    </td>
-                  </tr>
-                )}
+                  <thead>
 
-                {movementDisplayRows.map((m: any) => {
-                  const expanded = m.isJobGroup && expandedJobMovements.has(m.id);
-                  const rows = m.isJobGroup && expanded ? m.children : [];
-                  return <Fragment key={m.id}>
-                    <tr className={`border-b ${m.isJobGroup ? "cursor-pointer bg-blue-50/60 hover:bg-blue-100/70" : ""}`} onClick={m.isJobGroup ? () => setExpandedJobMovements((current) => { const next = new Set(current); if (next.has(m.id)) next.delete(m.id); else next.add(m.id); return next; }) : undefined}>
-                      <td className="break-words px-3 py-2 align-top font-black">{m.jobNumber ? (m.jobId ? <Link href={`/jobs/${m.jobId}`} onClick={(event) => event.stopPropagation()} className="text-blue-600 hover:underline">{m.jobNumber}</Link> : m.jobNumber) : "—"}</td>
-                      <td className="px-3 py-2 align-top tabular-nums">{m.createdAt?.toDate?.() ? formatDateTime24(m.createdAt.toDate()) : ""}</td>
-                      <td className="px-3 py-2 align-top font-bold">{m.isJobGroup && <span className="mr-2 text-blue-600">{expanded ? "▼" : "▶"}</span>}{m.type}</td>
-                      <td className={`px-3 py-2 text-right align-top font-black tabular-nums ${m.isJobGroup ? "text-gray-900" : m.quantity < 0 ? "text-red-600" : "text-green-700"}`}>{!m.isJobGroup && m.quantity > 0 ? "+" : ""}{m.quantity}</td>
-                      <td className="px-3 py-2 align-top">{m.location}</td>
-                      <td className="break-words px-3 py-2 align-top font-bold">{m.documentHref ? <Link href={m.documentHref} onClick={(event) => event.stopPropagation()} className="text-blue-600 hover:text-blue-800 hover:underline">{m.documentNumber}</Link> : m.documentNumber}</td>
-                      <td className="break-words px-3 py-2 align-top">{m.reference}</td>
-                      <td className="break-words px-3 py-2 align-top">{m.user}</td>
+                    <tr>
+
+                      <th className="w-[13%] px-3 py-2 align-bottom">Job Number</th>
+                      <th className="w-[14%] px-3 py-2 align-bottom">Date</th>
+                      <th className="w-[9%] px-3 py-2 align-bottom">Type</th>
+                      <th className="w-[6%] px-3 py-2 text-right align-bottom">Qty</th>
+                      <th className="w-[14%] px-3 py-2 align-bottom">Location</th>
+                      <th className="w-[16%] px-3 py-2 align-bottom">Document Number</th>
+                      <th className="w-[15%] px-3 py-2 align-bottom">Reference</th>
+                      <th className="w-[13%] px-3 py-2 align-bottom">User</th>
+
                     </tr>
-                    {rows.map((detail: any) => <tr key={`${m.id}-${detail.id}`} className="border-b bg-gray-50 text-[11px] text-gray-700">
-                      <td className="py-2 pl-8 pr-3 align-top font-bold">{detail.jobNumber || m.jobNumber || "—"}</td>
-                      <td className="px-3 py-2 align-top tabular-nums">{detail.createdAt?.toDate?.() ? formatDateTime24(detail.createdAt.toDate()) : ""}</td>
-                      <td className="px-3 py-2 align-top font-bold">{detail.type}</td>
-                      <td className={`px-3 py-2 text-right align-top font-black tabular-nums ${detail.quantity < 0 ? "text-red-600" : "text-green-700"}`}>{detail.quantity > 0 ? "+" : ""}{detail.quantity}</td>
-                      <td className="px-3 py-2 align-top">{detail.location}</td>
-                      <td className="break-words px-3 py-2 align-top font-bold">{detail.documentHref ? <Link href={detail.documentHref} className="text-blue-600 hover:underline">{detail.documentNumber}</Link> : detail.documentNumber}</td>
-                      <td className="break-words px-3 py-2 align-top">{detail.reference}</td>
-                      <td className="break-words px-3 py-2 align-top">{detail.user}</td>
-                    </tr>)}
-                  </Fragment>;
-                })}
+
+                  </thead>
 
 
-              </tbody>
+                  <tbody>
+
+                    {movementDisplayRows.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-gray-500">
+                          No movement history recorded for this inventory item.
+                        </td>
+                      </tr>
+                    )}
+
+                    {movementDisplayRows.map((m: any) => {
+                      const expanded = m.isJobGroup && expandedJobMovements.has(m.id);
+                      const rows = m.isJobGroup && expanded ? m.children : [];
+                      return <Fragment key={m.id}>
+                        <tr className={`border-b ${m.isJobGroup ? "cursor-pointer bg-blue-50/60 hover:bg-blue-100/70" : ""}`} onClick={m.isJobGroup ? () => setExpandedJobMovements((current) => { const next = new Set(current); if (next.has(m.id)) next.delete(m.id); else next.add(m.id); return next; }) : undefined}>
+                          <td className="break-words px-3 py-2 align-top font-black">{m.jobNumber ? (m.jobId ? <Link href={`/jobs/${m.jobId}`} onClick={(event) => event.stopPropagation()} className="text-blue-600 hover:underline">{m.jobNumber}</Link> : m.jobNumber) : "—"}</td>
+                          <td className="px-3 py-2 align-top tabular-nums">{m.createdAt?.toDate?.() ? formatDateTime24(m.createdAt.toDate()) : ""}</td>
+                          <td className="px-3 py-2 align-top font-bold">{m.isJobGroup && <span className="mr-2 text-blue-600">{expanded ? "▼" : "▶"}</span>}{m.type}</td>
+                          <td className={`px-3 py-2 text-right align-top font-black tabular-nums ${m.isJobGroup ? "text-gray-900" : m.quantity < 0 ? "text-red-600" : "text-green-700"}`}>{!m.isJobGroup && m.quantity > 0 ? "+" : ""}{m.quantity}</td>
+                          <td className="px-3 py-2 align-top">{m.location}</td>
+                          <td className="break-words px-3 py-2 align-top font-bold">{m.documentHref ? <Link href={m.documentHref} onClick={(event) => event.stopPropagation()} className="text-blue-600 hover:text-blue-800 hover:underline">{m.documentNumber}</Link> : m.documentNumber}</td>
+                          <td className="break-words px-3 py-2 align-top">{m.reference}</td>
+                          <td className="break-words px-3 py-2 align-top">{m.user}</td>
+                        </tr>
+                        {rows.map((detail: any) => <tr key={`${m.id}-${detail.id}`} className="border-b bg-gray-50 text-[11px] text-gray-700">
+                          <td className="py-2 pl-8 pr-3 align-top font-bold">{detail.jobNumber || m.jobNumber || "—"}</td>
+                          <td className="px-3 py-2 align-top tabular-nums">{detail.createdAt?.toDate?.() ? formatDateTime24(detail.createdAt.toDate()) : ""}</td>
+                          <td className="px-3 py-2 align-top font-bold">{detail.type}</td>
+                          <td className={`px-3 py-2 text-right align-top font-black tabular-nums ${detail.quantity < 0 ? "text-red-600" : "text-green-700"}`}>{detail.quantity > 0 ? "+" : ""}{detail.quantity}</td>
+                          <td className="px-3 py-2 align-top">{detail.location}</td>
+                          <td className="break-words px-3 py-2 align-top font-bold">{detail.documentHref ? <Link href={detail.documentHref} className="text-blue-600 hover:underline">{detail.documentNumber}</Link> : detail.documentNumber}</td>
+                          <td className="break-words px-3 py-2 align-top">{detail.reference}</td>
+                          <td className="break-words px-3 py-2 align-top">{detail.user}</td>
+                        </tr>)}
+                      </Fragment>;
+                    })}
 
 
-            </table>
+                  </tbody>
+
+
+                </table>
+              </div>
+
+
             </div>
 
-
-          </div>
-
-          {item.serialNumberTracking === true && <div className="rounded-3xl border bg-white p-6 shadow-sm">
-            <h2 className="mb-6 text-2xl font-black">Serial Movement</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] table-fixed text-left text-xs">
-                <thead><tr><th className="w-[18%] px-3 py-2">Date</th><th className="w-[19%] px-3 py-2">Serial Number</th><th className="w-[13%] px-3 py-2">Movement</th><th className="w-[18%] px-3 py-2">Location</th><th className="w-[18%] px-3 py-2">Reference</th><th className="w-[14%] px-3 py-2">User</th></tr></thead>
-                <tbody>
-                  {serialMovementRows.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-gray-500">No serial movement history recorded for this inventory item.</td></tr>}
-                  {serialMovementRows.map((movement: any) => <tr key={movement.id} className="border-b"><td className="px-3 py-2 align-top tabular-nums">{movement.date?.toDate?.() ? formatDateTime24(movement.date.toDate()) : ""}</td><td className="break-words px-3 py-2 align-top font-mono font-black text-blue-700">{movement.serialNumber}</td><td className="px-3 py-2 align-top font-black">{movement.type}</td><td className="break-words px-3 py-2 align-top">{movement.location}</td><td className="break-words px-3 py-2 align-top">{movement.reference}</td><td className="break-words px-3 py-2 align-top">{movement.user}</td></tr>)}
-                </tbody>
-              </table>
-            </div>
-          </div>}
+            {item.serialNumberTracking === true && <div className="rounded-3xl border bg-white p-6 shadow-sm">
+              <h2 className="mb-6 text-2xl font-black">Serial Movement</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] table-fixed text-left text-xs">
+                  <thead><tr><th className="w-[18%] px-3 py-2">Date</th><th className="w-[19%] px-3 py-2">Serial Number</th><th className="w-[13%] px-3 py-2">Movement</th><th className="w-[18%] px-3 py-2">Location</th><th className="w-[18%] px-3 py-2">Reference</th><th className="w-[14%] px-3 py-2">User</th></tr></thead>
+                  <tbody>
+                    {serialMovementRows.length === 0 && <tr><td colSpan={6} className="py-8 text-center text-gray-500">No serial movement history recorded for this inventory item.</td></tr>}
+                    {serialMovementRows.map((movement: any) => <tr key={movement.id} className="border-b"><td className="px-3 py-2 align-top tabular-nums">{movement.date?.toDate?.() ? formatDateTime24(movement.date.toDate()) : ""}</td><td className="break-words px-3 py-2 align-top font-mono font-black text-blue-700">{movement.serialNumber}</td><td className="px-3 py-2 align-top font-black">{movement.type}</td><td className="break-words px-3 py-2 align-top">{movement.location}</td><td className="break-words px-3 py-2 align-top">{movement.reference}</td><td className="break-words px-3 py-2 align-top">{movement.user}</td></tr>)}
+                  </tbody>
+                </table>
+              </div>
+            </div>}
           </div>
 
           {/* RIGHT */}
