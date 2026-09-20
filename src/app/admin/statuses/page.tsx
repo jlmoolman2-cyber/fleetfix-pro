@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 
 import {
+  clientAuth,
   clientDb,
 } from "@/lib/firebaseClient";
 
@@ -46,6 +47,31 @@ type Status = {
 
   systemKey?: unknown;
 };
+// ─── Temporary Phase 21D canonical reconciliation types (scheduled for removal) ───
+type ReconcileClassification = {
+  key: string;
+  classification: string;
+  existingDocumentName?: string;
+  reason?: string;
+};
+
+type ReconcilePlan = {
+  classifications: ReconcileClassification[];
+  updates: { documentId: string; systemKey: string }[];
+  creates: { name: string; systemKey: string }[];
+  hasErrors: boolean;
+  errorReasons: string[];
+};
+
+type ReconcileResult = {
+  plan: ReconcilePlan;
+  auditIds: string[];
+  createdIds: string[];
+  updatedIds: string[];
+  noOp: boolean;
+};
+// ─── End temporary Phase 21D types ───
+
 
 export default function StatusesPage() {
 
@@ -58,6 +84,14 @@ export default function StatusesPage() {
   ] = useState<
     Record<string, number>
   >({});
+
+  // Temporary Phase 21D reconciliation state
+  const [reconcileInFlight, setReconcileInFlight] = useState(false);
+  const [reconcileDispatched, setReconcileDispatched] = useState(false);
+  const [reconcileResult, setReconcileResult] = useState<ReconcileResult | null>(null);
+  const [reconcileError, setReconcileError] = useState<string | null>(null);
+  const [reconcileHttpStatus, setReconcileHttpStatus] = useState<number | null>(null);
+  const isStaging = process.env.NEXT_PUBLIC_FLEETFIX_ENVIRONMENT === "staging";
 
   useEffect(() => {
 
@@ -281,6 +315,69 @@ export default function StatusesPage() {
       );
     }
   }
+  // Temporary Phase 21D canonical reconciliation handler (scheduled for removal)
+  async function handleReconcileAll() {
+    const confirmed = confirm(
+      "STAGING ONLY — Reconcile Canonical Statuses?\n\n" +
+      "This will assign canonical system keys to existing legacy statuses " +
+      "and create any missing canonical statuses.\n\n" +
+      "No statuses will be deleted.\n" +
+      "This action is intended to run once.\n\n" +
+      "Select OK to proceed or Cancel to abort."
+    );
+    if (!confirmed) return;
+
+    setReconcileInFlight(true);
+    setReconcileError(null);
+    setReconcileResult(null);
+    setReconcileHttpStatus(null);
+
+    try {
+      await clientAuth.authStateReady();
+      const user = clientAuth.currentUser;
+      if (!user) {
+        setReconcileError("Your FleetFix session has expired. Please sign in again.");
+        setReconcileInFlight(false);
+        return;
+      }
+      const token = await user.getIdToken();
+
+      // Dispatch — from this point the attempt is consumed
+      setReconcileDispatched(true);
+
+      const response = await fetch("/api/admin/statuses/reconcile-all", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      setReconcileHttpStatus(response.status);
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const serverMessage =
+          data && typeof data === "object" && "error" in data
+            ? (data as { error?: { message?: string } }).error?.message
+            : undefined;
+        setReconcileError(
+          serverMessage || `Reconciliation failed (HTTP ${response.status}).`
+        );
+        setReconcileInFlight(false);
+        return;
+      }
+
+      setReconcileResult(data as ReconcileResult);
+      setReconcileInFlight(false);
+    } catch (error) {
+      setReconcileError(
+        error instanceof Error ? error.message : "Reconciliation request failed."
+      );
+      setReconcileInFlight(false);
+    }
+  }
+
 
   return (
 
@@ -318,6 +415,106 @@ export default function StatusesPage() {
         </Link>
 
       </div>
+      {/* Temporary Phase 21D canonical reconciliation UI — scheduled for removal after verification */}
+      {isStaging && (
+        <div className="mb-8 rounded-2xl border border-amber-300 bg-amber-50 p-6 shadow-sm">
+          <h2 className="text-lg font-black text-amber-900">
+            Canonical Status Reconciliation (Staging Only)
+          </h2>
+          <p className="mt-1 text-sm text-amber-800">
+            Assign canonical system keys to legacy statuses and create any missing canonical statuses. No statuses will be deleted.
+          </p>
+          <button
+            type="button"
+            onClick={handleReconcileAll}
+            disabled={reconcileInFlight || reconcileDispatched}
+            className={`mt-4 rounded-xl px-5 py-3 text-sm font-semibold text-white ${
+              reconcileInFlight || reconcileDispatched
+                ? "cursor-not-allowed bg-gray-400 opacity-60"
+                : "bg-amber-600 hover:bg-amber-700"
+            }`}
+          >
+            {reconcileInFlight
+              ? "Reconciling…"
+              : reconcileDispatched
+                ? "Reconciliation Dispatched"
+                : "Reconcile Canonical Statuses"}
+          </button>
+
+          {reconcileError && (
+            <div className="mt-4 rounded-xl border border-red-300 bg-red-50 p-4">
+              <p className="text-sm font-bold text-red-800">Reconciliation Failed</p>
+              {reconcileHttpStatus && (
+                <p className="mt-1 text-sm text-red-700">HTTP {reconcileHttpStatus}</p>
+              )}
+              <p className="mt-1 text-sm text-red-700">{reconcileError}</p>
+              {reconcileDispatched && (
+                <p className="mt-2 text-sm font-semibold text-red-900">
+                  Request was dispatched. Stop for controlled review. Do not retry.
+                </p>
+              )}
+              {!reconcileDispatched && (
+                <p className="mt-2 text-xs text-red-600">
+                  RequestDispatched=False — No reconciliation attempt has been consumed.
+                </p>
+              )}
+            </div>
+          )}
+
+          {reconcileResult && (
+            <div className="mt-4 rounded-xl border border-green-300 bg-green-50 p-4">
+              <p className="text-sm font-bold text-green-800">
+                {reconcileResult.noOp ? "Reconciliation Complete — No Changes Required" : "Reconciliation Complete"}
+              </p>
+              {reconcileHttpStatus && (
+                <p className="mt-1 text-sm text-green-700">HTTP {reconcileHttpStatus}</p>
+              )}
+              <div className="mt-3 space-y-1 text-sm text-green-800">
+                <p>No-op: {reconcileResult.noOp ? "Yes" : "No"}</p>
+                <p>Plan errors: {reconcileResult.plan.hasErrors ? "Yes" : "None"}</p>
+                {reconcileResult.plan.hasErrors && reconcileResult.plan.errorReasons.length > 0 && (
+                  <ul className="ml-4 list-disc text-red-700">
+                    {reconcileResult.plan.errorReasons.map((reason, i) => (
+                      <li key={i}>{reason}</li>
+                    ))}
+                  </ul>
+                )}
+                <p>Legacy updates applied: {reconcileResult.plan.updates.length}</p>
+                <p>Canonical statuses created: {reconcileResult.plan.creates.length}</p>
+                <p>Updated document count: {reconcileResult.updatedIds.length}</p>
+                <p>Created document count: {reconcileResult.createdIds.length}</p>
+                <p>Audit records written: {reconcileResult.auditIds.length}</p>
+              </div>
+              {reconcileResult.plan.classifications.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold text-green-900">Canonical Classifications:</p>
+                  <table className="mt-2 w-full text-left text-sm">
+                    <thead>
+                      <tr className="border-b border-green-300">
+                        <th className="py-1 pr-4 font-semibold text-green-900">Key</th>
+                        <th className="py-1 pr-4 font-semibold text-green-900">Classification</th>
+                        <th className="py-1 font-semibold text-green-900">Detail</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reconcileResult.plan.classifications.map((c, i) => (
+                        <tr key={i} className="border-b border-green-200">
+                          <td className="py-1 pr-4 font-mono text-green-800">{c.key}</td>
+                          <td className="py-1 pr-4 text-green-800">{c.classification}</td>
+                          <td className="py-1 text-green-700">
+                            {c.existingDocumentName || c.reason || "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
 
       {/* TABLE */}
       <div
