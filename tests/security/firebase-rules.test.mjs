@@ -6,7 +6,7 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { getBytes, ref, uploadBytes } from "firebase/storage";
 
 let environment;
@@ -112,6 +112,58 @@ test("administrator can manage users and job configuration", async () => {
   await assertSucceeds(updateDoc(doc(db, "companies/company-a/users/user-a"), {
     permissions: { "View jobs": true, "Edit jobs": false },
   }));
+});
+
+test("status rules preserve custom management and reject client canonical assignment", async () => {
+  const db = environment.authenticatedContext("admin-a").firestore();
+  const custom = doc(db, "companies/company-a/statuses/custom");
+  await assertSucceeds(setDoc(custom, { name: "Awaiting Parts", active: false }));
+  await assertSucceeds(updateDoc(custom, { active: true, startTimer: true }));
+  await assertFails(setDoc(doc(db, "companies/company-a/statuses/canonical"), {
+    name: "Job Complete",
+    systemKey: "job_complete",
+  }));
+  await assertFails(updateDoc(custom, { systemKey: "job_booked" }));
+  await assertSucceeds(deleteDoc(custom));
+});
+
+test("unauthorized and cross-company users cannot mutate statuses", async () => {
+  const normalDb = environment.authenticatedContext("user-a").firestore();
+  const otherDb = environment.authenticatedContext("user-b").firestore();
+  await assertFails(setDoc(doc(normalDb, "companies/company-a/statuses/custom-2"), { name: "Custom" }));
+  await assertFails(updateDoc(doc(otherDb, "companies/company-a/statuses/open"), { active: false }));
+});
+
+test("canonical and invalid status metadata fail closed for browser mutation", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore();
+    await setDoc(doc(db, "companies/company-a/statuses/booked"), {
+      name: "Job Booked",
+      systemKey: "job_booked",
+      active: true,
+    });
+    await setDoc(doc(db, "companies/company-a/statuses/invalid"), {
+      name: "Invalid",
+      systemKey: "unsupported",
+      active: true,
+    });
+  });
+  const db = environment.authenticatedContext("admin-a").firestore();
+  const canonical = doc(db, "companies/company-a/statuses/booked");
+  const invalid = doc(db, "companies/company-a/statuses/invalid");
+  await assertSucceeds(updateDoc(canonical, { name: "Booked", active: false }));
+  await assertFails(updateDoc(canonical, { systemKey: "onroute" }));
+  await assertFails(updateDoc(canonical, { systemKey: null }));
+  await assertFails(deleteDoc(canonical));
+  await assertFails(updateDoc(invalid, { name: "Repair attempt" }));
+  await assertFails(updateDoc(invalid, { systemKey: "job_booked" }));
+  await assertFails(deleteDoc(invalid));
+});
+
+test("unrelated administrative permissions remain unchanged", async () => {
+  const db = environment.authenticatedContext("admin-a").firestore();
+  await assertSucceeds(setDoc(doc(db, "companies/company-a/jobTypes/repair"), { name: "Repair" }));
+  await assertFails(setDoc(doc(environment.authenticatedContext("user-a").firestore(), "companies/company-a/jobTypes/repair-2"), { name: "Repair" }));
 });
 
 test("browser writes to protected WhatsApp collections are denied for users and administrators", async () => {

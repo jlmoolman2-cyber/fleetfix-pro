@@ -97,6 +97,15 @@ service cloud.firestore {
         ] && hasPermission(companyId, 'Manage job settings'));
     }
 
+    function validCanonicalStatusKey(value) {
+      return value is string
+        && value in ['job_booked', 'onroute', 'start_work', 'job_complete'];
+    }
+
+    function statusHasSystemKey(data) {
+      return data.keys().hasAny(['systemKey']);
+    }
+
     function selfServiceUserUpdate(userId) {
       return request.auth.uid == userId
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -126,6 +135,23 @@ service cloud.firestore {
           && request.resource.data.createdAt is timestamp;
         allow read: if hasPermission(companyId, 'View audit log');
         allow update, delete: if false;
+      }
+
+      match /statuses/{statusId} {
+        allow read: if isCompanyMember(companyId);
+        allow create: if hasPermission(companyId, 'Manage job settings')
+          && !statusHasSystemKey(request.resource.data);
+        allow update: if hasPermission(companyId, 'Manage job settings')
+          && (
+            (!statusHasSystemKey(resource.data)
+              && !statusHasSystemKey(request.resource.data))
+            || (statusHasSystemKey(resource.data)
+              && validCanonicalStatusKey(resource.data.systemKey)
+              && statusHasSystemKey(request.resource.data)
+              && request.resource.data.systemKey == resource.data.systemKey)
+          );
+        allow delete: if hasPermission(companyId, 'Manage job settings')
+          && !statusHasSystemKey(resource.data);
       }
 
       match /whatsappSettings/{settingId} {
@@ -174,6 +200,7 @@ service cloud.firestore {
           && collectionId != 'users'
           && collectionId != 'audit_log'
           && collectionId != 'whatsappSettings'
+          && collectionId != 'statuses'
           && !isServerOnlyCollection(collectionId)
           && (!isAdministrativeCollection(collectionId)
             || canManageAdministrativeCollection(companyId, collectionId));
