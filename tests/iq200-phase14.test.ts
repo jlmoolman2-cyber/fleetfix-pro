@@ -171,11 +171,11 @@ function hostedControls(
 ): HostedExecutionControls {
   return {
     acquireLease: async () => ({ token: "lease", ref: {} }),
-    finishLease: async () => {},
+    finishLease: async () => { },
     reserve: async () => ({ duplicate: false, inProgress: false, retryExhausted: false, retry: false, requestId: "request-1" }),
     loadPriorResult: async () => ({ exists: false, success: false, interactionId: null, response: null }),
     persistSuccess: async () => { onPersistSuccess?.(); return "interaction-1"; },
-    persistFailure: async () => {},
+    persistFailure: async () => { },
     buildEvidence: async () => baseEvidence,
     provider,
     withTimeout: async (work) => work(new AbortController().signal),
