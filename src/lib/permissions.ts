@@ -17,7 +17,7 @@ export const PERMISSION_SECTIONS: PermissionSection[] = [
     { name: "Dashboard", sub: ["View dashboard"] },
     { name: "Jobs", sub: ["View jobs", "Create jobs", "Edit jobs", "Assign jobs", "Change job status", "Close jobs", "Archive jobs", "Open closed jobs"] },
     { name: "Job Cards", sub: ["View job pricing", "Edit job forms", "Manage job tasks", "Manage job timers", "Manage job attachments", "Manage job photos", "Manage job materials", "Allocate serial numbers", "Mark job materials used", "Correct used job materials"] },
-    { name: "IQ200 Technician Assist", sub: ["Use IQ200 Technician Assist", "View IQ200 Known Fixes", "Manage IQ200 Known Fixes", "Approve IQ200 Known Fixes"] },
+    { name: "IQ200 Technician Assist", sub: ["Use IQ200 Technician Assist", "View IQ200 Known Fixes", "Manage IQ200 Known Fixes", "Approve IQ200 Known Fixes", "View IQ200 Knowledge", "Upload IQ200 Knowledge", "Manage IQ200 Knowledge", "Approve IQ200 Knowledge"] },
   ] },
   { title: "Customers & Suppliers", items: [
     { name: "Customers", sub: ["View customers", "Create customers", "Edit customer", "Delete customers", "Manage customer contacts", "Manage customer vehicles", "Manage recurring jobs"] },
