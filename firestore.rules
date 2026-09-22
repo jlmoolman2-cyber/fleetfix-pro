@@ -63,7 +63,8 @@ service cloud.firestore {
       return collectionId in [
         'communicationTemplates', 'communicationRulePlans', 'communicationExecutions', 'iq200_hosted_controls',
         'whatsappConversations', 'whatsappMessages', 'whatsappWebhookEvents', 'whatsappSendRequests',
-        'whatsappAuditLog', 'whatsappDeliveryStatuses', 'whatsappRateLimits', 'whatsappDiagnostics', 'whatsappMediaJobs'
+        'whatsappAuditLog', 'whatsappDeliveryStatuses', 'whatsappRateLimits', 'whatsappDiagnostics', 'whatsappMediaJobs',
+        'iq200_documents', 'iq200_idempotency_keys', 'iq200_content_hashes'
       ];
     }
 
@@ -179,6 +180,20 @@ service cloud.firestore {
 
       // IQ200 technical knowledge is curated exclusively through server APIs.
       match /iq200_known_fixes/{knownFixId}/{document=**} {
+        allow read, write: if false;
+      }
+
+      // IQ200 knowledge library documents, idempotency keys, and content hashes
+      // are server-only. Browser/client SDK access is denied.
+      match /iq200_documents/{document=**} {
+        allow read, write: if false;
+      }
+
+      match /iq200_idempotency_keys/{document=**} {
+        allow read, write: if false;
+      }
+
+      match /iq200_content_hashes/{document=**} {
         allow read, write: if false;
       }
 

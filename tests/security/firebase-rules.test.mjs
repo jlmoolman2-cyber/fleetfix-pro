@@ -250,3 +250,117 @@ test("company member can use company Storage and other-company member cannot", a
   await assertSucceeds(getBytes(memberRef));
   await assertFails(getBytes(ref(environment.authenticatedContext("user-b").storage(), path)));
 });
+
+// ── IQ200 Knowledge Storage boundary (Phase 24D-2A) ──────────────────────
+
+test("IQ200 knowledge Storage path is denied to company members and admin", async () => {
+  const iq200Path = "companies/company-a/iq200/documents/doc-1/original/source.pdf";
+  for (const uid of ["user-a", "admin-a"]) {
+    const storage = environment.authenticatedContext(uid).storage();
+    await assertFails(getBytes(ref(storage, iq200Path)));
+    await assertFails(uploadBytes(ref(storage, iq200Path), new TextEncoder().encode("test"), { contentType: "application/pdf" }));
+  }
+});
+
+test("IQ200 knowledge Storage create is denied on derivative paths too", async () => {
+  const p = "companies/company-a/iq200/documents/doc-2/derivative/page-1.png";
+  const storage = environment.authenticatedContext("user-a").storage();
+  await assertFails(uploadBytes(ref(storage, p), new TextEncoder().encode("test"), { contentType: "application/octet-stream" }));
+});
+
+test("IQ200 knowledge Storage update and delete are denied to company members", async () => {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await uploadBytes(
+      ref(context.storage(), "companies/company-a/iq200/documents/doc-seeded/original/source.pdf"),
+      new TextEncoder().encode("seeded-pdf"),
+      { contentType: "application/pdf" },
+    );
+  });
+  const seededPath = "companies/company-a/iq200/documents/doc-seeded/original/source.pdf";
+  const memberCtx = environment.authenticatedContext("user-a");
+  const adminCtx = environment.authenticatedContext("admin-a");
+  await assertFails(getBytes(ref(memberCtx.storage(), seededPath)));
+  await assertFails(uploadBytes(ref(memberCtx.storage(), seededPath), new TextEncoder().encode("overwritten"), { contentType: "application/pdf" }));
+  await assertFails(getBytes(ref(adminCtx.storage(), seededPath)));
+  await assertFails(uploadBytes(ref(adminCtx.storage(), seededPath), new TextEncoder().encode("overwritten"), { contentType: "application/pdf" }));
+});
+
+test("IQ200 knowledge Storage is denied to non-members", async () => {
+  const iq200Path = "companies/company-a/iq200/documents/doc-1/original/source.pdf";
+  const nonMember = environment.authenticatedContext("user-b");
+  await assertFails(getBytes(ref(nonMember.storage(), iq200Path)));
+  await assertFails(uploadBytes(ref(nonMember.storage(), iq200Path), new TextEncoder().encode("test"), { contentType: "application/pdf" }));
+});
+
+test("existing non-IQ200 company Storage behavior is preserved after IQ200 exclusion", async () => {
+  const storage = environment.authenticatedContext("user-a").storage();
+  await assertSucceeds(getBytes(ref(storage, "companies/company-a/jobs/job-1/attachments/existing.txt")));
+  await assertSucceeds(uploadBytes(
+    ref(storage, "companies/company-a/jobs/job-1/attachments/new-test.txt"),
+    new TextEncoder().encode("new content"),
+    { contentType: "text/plain" },
+  ));
+});
+
+// ── IQ200 Knowledge Firestore boundary (Phase 24D-2A) ────────────────────
+
+test("IQ200 documents collection is denied to company members and admin", async () => {
+  for (const uid of ["user-a", "admin-a"]) {
+    const db = environment.authenticatedContext(uid).firestore();
+    await assertFails(getDoc(doc(db, "companies/company-a/iq200_documents/doc-1")));
+    await assertFails(setDoc(doc(db, "companies/company-a/iq200_documents/doc-new"), {
+      title: "Test", processingStatus: "PENDING", approvalStatus: "DRAFT",
+    }));
+  }
+});
+
+test("IQ200 documents update and delete are denied to company members", async () => {
+  await environment.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), "companies/company-a/iq200_documents/doc-update"), {
+      title: "Seeded", processingStatus: "PENDING", approvalStatus: "DRAFT",
+    });
+  });
+  const db = environment.authenticatedContext("user-a").firestore();
+  await assertFails(updateDoc(doc(db, "companies/company-a/iq200_documents/doc-update"), { title: "Modified" }));
+  await assertFails(deleteDoc(doc(db, "companies/company-a/iq200_documents/doc-update")));
+});
+
+test("IQ200 documents descendants are denied to company members", async () => {
+  const db = environment.authenticatedContext("user-a").firestore();
+  await assertFails(getDoc(doc(db, "companies/company-a/iq200_documents/doc-1/pages/page-1")));
+  await assertFails(setDoc(doc(db, "companies/company-a/iq200_documents/doc-1/pages/page-1"), {
+    pageIndex: 0, displayPageNumber: "1",
+  }));
+});
+
+test("IQ200 documents are denied to non-members", async () => {
+  const db = environment.authenticatedContext("user-b").firestore();
+  await assertFails(getDoc(doc(db, "companies/company-a/iq200_documents/doc-1")));
+  await assertFails(setDoc(doc(db, "companies/company-a/iq200_documents/doc-new"), { title: "Test" }));
+});
+
+test("IQ200 idempotency keys collection is denied to company members", async () => {
+  for (const uid of ["user-a", "admin-a"]) {
+    const db = environment.authenticatedContext(uid).firestore();
+    await assertFails(getDoc(doc(db, "companies/company-a/iq200_idempotency_keys/key-1")));
+    await assertFails(setDoc(doc(db, "companies/company-a/iq200_idempotency_keys/key-new"), {
+      documentId: "doc-1", createdAt: serverTimestamp(),
+    }));
+  }
+});
+
+test("IQ200 content hashes collection is denied to company members", async () => {
+  for (const uid of ["user-a", "admin-a"]) {
+    const db = environment.authenticatedContext(uid).firestore();
+    await assertFails(getDoc(doc(db, "companies/company-a/iq200_content_hashes/abc123")));
+    await assertFails(setDoc(doc(db, "companies/company-a/iq200_content_hashes/abc123"), {
+      documentId: "doc-1", createdAt: serverTimestamp(),
+    }));
+  }
+});
+
+test("existing unrelated company Firestore access is preserved after IQ200 exclusion", async () => {
+  const db = environment.authenticatedContext("user-a").firestore();
+  await assertSucceeds(getDoc(doc(db, "companies/company-a/jobs/job-1")));
+  await assertSucceeds(getDoc(doc(db, "companies/company-a/statuses/open")));
+});

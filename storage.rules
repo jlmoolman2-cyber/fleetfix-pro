@@ -20,10 +20,10 @@ service firebase.storage {
         && request.resource.contentType.size() <= 150;
     }
 
-    match /companies/{companyId}/{path=**} {
-      allow read: if isCompanyMember(companyId);
-      allow create, update: if isCompanyMember(companyId) && validUpload();
-      allow delete: if isCompanyMember(companyId);
+    match /companies/{companyId}/{firstSegment}/{rest=**} {
+      allow read: if isCompanyMember(companyId) && firstSegment != "iq200";
+      allow create, update: if isCompanyMember(companyId) && validUpload() && firstSegment != "iq200";
+      allow delete: if isCompanyMember(companyId) && firstSegment != "iq200";
     }
 
     match /{path=**} {
