@@ -184,3 +184,15 @@ test("20. output is full-colour PNG with no persistence", async () => {
   assert.ok(!result.pngBytes.toString().includes("https://"));
   assert.ok(!result.pngBytes.toString().includes("storage"));
 });
+test("21. renderer statically loads the PDF.js legacy worker for the Node fake-worker path", async () => {
+  const fs = await import("node:fs");
+  const rendererSource = fs.readFileSync("src/lib/iq200/knowledgePdfRenderer.ts", "utf8");
+  assert.match(rendererSource, /import\s*["']pdfjs-dist\/legacy\/build\/pdf\.worker\.mjs["']/);
+
+  // Runtime mechanism check: evaluating the production renderer module runs the worker
+  // side-effect import, whose top level registers the WorkerMessageHandler that
+  // pdfjs-dist 6.3.289 consults before attempting the failing dynamic worker import.
+  await import("../src/lib/iq200/knowledgePdfRenderer.ts");
+  const handler = (globalThis as unknown as { pdfjsWorker?: { WorkerMessageHandler?: unknown } }).pdfjsWorker?.WorkerMessageHandler;
+  assert.equal(typeof handler, "function");
+});

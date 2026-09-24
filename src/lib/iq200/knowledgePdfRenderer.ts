@@ -3,6 +3,12 @@
 
 import { createCanvas } from "@napi-rs/canvas";
 import { getDocument, type PDFDocumentProxy, type PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
+// pdfjs-dist 6.3.289 runs an in-process "fake worker" on Node. Statically importing the
+// legacy worker module up-front registers `globalThis.pdfjsWorker.WorkerMessageHandler`,
+// which the fake-worker loader consults before dynamically importing `./pdf.worker.mjs`.
+// This avoids the module-not-found failure in the Next.js standalone/App Hosting output
+// while keeping the renderer fully single-threaded and server-side.
+import "pdfjs-dist/legacy/build/pdf.worker.mjs";
 
 export const TARGET_DPI = 300;
 export const SCALE_FACTOR = TARGET_DPI / 72;
