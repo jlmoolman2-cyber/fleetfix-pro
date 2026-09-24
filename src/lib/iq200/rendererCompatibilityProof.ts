@@ -58,9 +58,24 @@ function isPng(bytes: Uint8Array): boolean {
     bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
 }
 
-function mapRendererError(code: PdfRenderErrorCode): RendererCompatibilityFailureCode {
-  if (code === "PNG_ENCODING_FAILED") return "PNG_ENCODE_FAILED";
-  return code === "PDF_RENDER_FAILED" ? "PAGE_RENDER_FAILED" : "PAGE_RENDER_FAILED";
+// Exported solely so the pure PdfRenderErrorCode -> RendererCompatibilityFailureCode
+// mapping can be verified at runtime by the test suite. Not part of the
+// HTTP/proof result contract.
+export function mapRendererError(code: PdfRenderErrorCode): RendererCompatibilityFailureCode {
+  switch (code) {
+    case "PNG_ENCODING_FAILED":
+      return "PNG_ENCODE_FAILED";
+    case "PDF_RENDER_FAILED":
+    case "PDF_RENDER_WIDTH_LIMIT_EXCEEDED":
+    case "PDF_RENDER_HEIGHT_LIMIT_EXCEEDED":
+    case "PDF_RENDER_PIXEL_LIMIT_EXCEEDED":
+      return "PAGE_RENDER_FAILED";
+    default: {
+      // Exhaustiveness guard: a new PdfRenderErrorCode must be mapped explicitly here.
+      const unreachable: never = code;
+      return unreachable;
+    }
+  }
 }
 
 async function confirmFullColour(

@@ -30,6 +30,27 @@ export class PdfRenderError extends Error {
   }
 }
 
+/**
+ * Maximum length of the diagnostic failure message logged by
+ * renderPdfPageToPng on failure. Anything longer is truncated before
+ * console.error receives it.
+ */
+export const MAX_DIAGNOSTIC_MESSAGE_LENGTH = 500;
+
+/**
+ * Normalizes an unknown caught value into a bounded diagnostic string
+ * (<= MAX_DIAGNOSTIC_MESSAGE_LENGTH characters). Error instances
+ * contribute `message`; every other value is reduced to its String()
+ * form. Never serializes nested objects, requests, headers,
+ * environments, or byte payloads.
+ */
+export function normalizeDiagnosticMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  return raw.length <= MAX_DIAGNOSTIC_MESSAGE_LENGTH
+    ? raw
+    : raw.slice(0, MAX_DIAGNOSTIC_MESSAGE_LENGTH);
+}
+
 export interface RenderedPageResult {
   pageIndex: number;
   widthPixels: number;
@@ -126,6 +147,14 @@ export async function renderPdfPageToPng(bytes: Uint8Array, pageIndex: number): 
     document = await loadingTask.promise;
     return await renderSinglePage(document, pageIndex);
   } catch (error) {
+    // Diagnostic-only: bounded, non-sensitive fields for hosted-runtime triage.
+    console.error("[IQ200_RENDERER_RUNTIME_FAILURE]", {
+      name: error instanceof Error ? error.name : typeof error,
+      message: normalizeDiagnosticMessage(error),
+      code: error instanceof PdfRenderError ? error.code : "UNKNOWN",
+      stage: document === null ? "pdf_load" : "page_render",
+    });
+
     if (error instanceof PdfRenderError) {
       throw error;
     }
