@@ -121,6 +121,7 @@ export interface KnowledgePageIdentity {
 
 export interface KnowledgePage {
   documentId: string;
+  processingAttemptId: string;
   pageIndex: number;
   displayPageNumber: string;
   extractedText: string;
@@ -130,7 +131,7 @@ export interface KnowledgePage {
   thumbnailStorageRef: string;
   imageWidth: number;
   imageHeight: number;
-  hasDiagrams: boolean;
+  hasDiagrams?: boolean;
 }
 
 // ─── Document Metadata ───────────────────────────────────────────────────────

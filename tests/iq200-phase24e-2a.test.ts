@@ -232,9 +232,10 @@ test("36. no page Firestore write", () => {
   assert.doesNotMatch(serviceSrc(), /pages\/|pageRecord|createPage/);
 });
 
-test("37. no production behavior — claim only, no actual processing", () => {
+test("37. claim service stays isolated while the route delegates the server-owned claim", () => {
   assert.match(routeSrc(), /claimNextPendingDocument/);
-  assert.doesNotMatch(routeSrc(), /download|render|extract|process.*pdf/i);
+  assert.match(routeSrc(), /processClaimedKnowledgeDocument\(claim\)/);
+  assert.doesNotMatch(routeSrc(), /request\.json|searchParams|body\.companyId|body\.documentId|storagePath/);
   assert.doesNotMatch(serviceSrc(), /download|\.download\(\)/);
 });
 
