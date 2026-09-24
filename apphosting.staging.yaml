@@ -37,6 +37,10 @@ env:
     value: "1:764335805140:web:26356282489d5ab2e3e141"
     availability: [BUILD, RUNTIME]
 
+  - variable: IQ200_PROCESSING_WORKER_SECRET
+    secret: iq200ProcessingWorkerSecret
+    availability: [RUNTIME]
+
   # IQ200 Phase 7 staging configuration: reasoning and hosted provider armed, commissioning remains closed.
   - variable: IQ200_REASONING_ENABLED
     value: "true"
