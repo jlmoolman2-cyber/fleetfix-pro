@@ -196,3 +196,62 @@ test("21. renderer statically loads the PDF.js legacy worker for the Node fake-w
   const handler = (globalThis as unknown as { pdfjsWorker?: { WorkerMessageHandler?: unknown } }).pdfjsWorker?.WorkerMessageHandler;
   assert.equal(typeof handler, "function");
 });
+
+test("22. renderer logs a bounded non-sensitive runtime diagnostic on underlying failure", async () => {
+  const originalConsoleError = console.error;
+  const calls: unknown[][] = [];
+  console.error = (...args: unknown[]) => {
+    calls.push(args);
+  };
+  process.env.SOME_TEST_SECRET_PROBE = "should-never-appear-in-logs";
+  try {
+    await assert.rejects(() => renderPdfPageToPng(new Uint8Array([1, 2, 3, 4]), 0), (error: unknown) => error instanceof PdfRenderError);
+  } finally {
+    console.error = originalConsoleError;
+    delete process.env.SOME_TEST_SECRET_PROBE;
+  }
+
+  const diagnosticCalls = calls.filter((args) => args[0] === "[IQ200_RENDERER_RUNTIME_FAILURE]");
+  assert.ok(diagnosticCalls.length >= 1, "expected at least one [IQ200_RENDERER_RUNTIME_FAILURE] log");
+
+  const [prefix, payload] = diagnosticCalls[0] as [string, Record<string, unknown>];
+  assert.equal(prefix, "[IQ200_RENDERER_RUNTIME_FAILURE]");
+  assert.deepEqual(Object.keys(payload).sort(), ["code", "message", "name", "stage"]);
+  assert.equal(typeof payload.name, "string");
+  assert.equal(typeof payload.message, "string");
+  assert.equal(typeof payload.code, "string");
+  assert.equal(typeof payload.stage, "string");
+
+  const serialized = JSON.stringify(payload);
+  assert.doesNotMatch(serialized, /should-never-appear-in-logs|SOME_TEST_SECRET_PROBE|Authorization|Bearer|process\.env/i);
+  assert.doesNotMatch(serialized, /[A-Z]:\\|\/src\//);
+});
+
+test("23. renderer diagnostic message is normalized and runtime-bounded to 500 characters", async () => {
+  const { normalizeDiagnosticMessage, MAX_DIAGNOSTIC_MESSAGE_LENGTH } = await import("../src/lib/iq200/knowledgePdfRenderer.ts");
+  assert.equal(MAX_DIAGNOSTIC_MESSAGE_LENGTH, 500);
+
+  assert.equal(normalizeDiagnosticMessage(new Error("short failure")), "short failure");
+  assert.equal(normalizeDiagnosticMessage("plain thrown string"), "plain thrown string");
+  assert.equal(normalizeDiagnosticMessage(123), "123");
+  assert.equal(normalizeDiagnosticMessage(null), "null");
+  assert.equal(normalizeDiagnosticMessage(void 0), "undefined");
+  assert.equal(normalizeDiagnosticMessage({ a: 1 }), "[object Object]");
+
+  const bounded = normalizeDiagnosticMessage(new Error("x".repeat(2000)));
+  assert.equal(typeof bounded, "string");
+  assert.ok(bounded.length <= MAX_DIAGNOSTIC_MESSAGE_LENGTH);
+  assert.equal(bounded.length, MAX_DIAGNOSTIC_MESSAGE_LENGTH);
+
+  const atLimit = normalizeDiagnosticMessage(new Error("y".repeat(MAX_DIAGNOSTIC_MESSAGE_LENGTH)));
+  assert.equal(atLimit.length, MAX_DIAGNOSTIC_MESSAGE_LENGTH);
+
+  const longNonError = normalizeDiagnosticMessage("z".repeat(1000));
+  assert.equal(typeof longNonError, "string");
+  assert.ok(longNonError.length <= MAX_DIAGNOSTIC_MESSAGE_LENGTH);
+
+  // Defense-in-depth: the production log wiring routes the message through the helper.
+  const fs = await import("node:fs");
+  const rendererSource = fs.readFileSync("src/lib/iq200/knowledgePdfRenderer.ts", "utf8");
+  assert.match(rendererSource, /message:\s*normalizeDiagnosticMessage\(error\)/);
+});

@@ -1,5 +1,5 @@
-// IQ200 Knowledge Document PDF Renderer — Controlled local compatibility proof
-// Phase 24E-2C-1: Synthetic PDF page rendering with pdfjs-dist + @napi-rs/canvas.
+// IQ200 Knowledge Document PDF Renderer.
+// Production server-side PDF page rendering with pdfjs-dist + @napi-rs/canvas.
 
 import { createCanvas } from "@napi-rs/canvas";
 import { getDocument, type PDFDocumentProxy, type PDFPageProxy } from "pdfjs-dist/legacy/build/pdf.mjs";

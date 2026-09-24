@@ -12,9 +12,6 @@ env:
   - variable: FLEETFIX_ENVIRONMENT
     value: "staging"
     availability: [BUILD, RUNTIME]
-  - variable: IQ200_RENDERER_COMPATIBILITY_PROOF_SECRET
-    secret: iq200RendererCompatibilityProofSecret
-    availability: [RUNTIME]
   - variable: NEXT_PUBLIC_FLEETFIX_ENVIRONMENT
     value: "staging"
     availability: [BUILD, RUNTIME]
