@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
 
-    serverExternalPackages: ["@napi-rs/canvas"],
+    serverExternalPackages: ["@napi-rs/canvas", "@google-cloud/tasks"],
 
     images: {
 
