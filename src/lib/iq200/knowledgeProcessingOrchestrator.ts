@@ -28,6 +28,7 @@ export type ProcessingTaskRequest = {
     httpRequest: {
       httpMethod: "POST";
       url: string;
+      dispatchDeadline: { seconds: number };
       headers: { "Content-Type": "application/json" };
       body: string;
       oidcToken: { serviceAccountEmail: string; audience: string };
@@ -126,6 +127,7 @@ function buildProcessingTaskRequest(
       httpRequest: {
         httpMethod: "POST",
         url: config.targetUrl,
+        dispatchDeadline: { seconds: 290 },
         headers: { "Content-Type": "application/json" },
         body: Buffer.from(JSON.stringify({
           companyId: identity.companyId,

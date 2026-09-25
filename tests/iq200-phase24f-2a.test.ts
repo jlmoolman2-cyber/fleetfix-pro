@@ -63,6 +63,7 @@ test("orchestrator constructs one OIDC POST task with a JSON descriptor", async 
   const request = transport.requests[0];
   assert.equal(request.task.httpRequest.httpMethod, "POST");
   assert.equal(new URL(request.task.httpRequest.url).pathname, orchestrator.PROCESSING_TASK_PATH);
+  assert.equal(request.task.httpRequest.dispatchDeadline.seconds, 290);
   assert.equal(request.task.httpRequest.headers["Content-Type"], "application/json");
   const decodedBody = JSON.parse(Buffer.from(request.task.httpRequest.body, "base64").toString("utf8"));
   assert.deepEqual(decodedBody, {
