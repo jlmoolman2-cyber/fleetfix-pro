@@ -80,7 +80,9 @@ export function isEligibleForClaim(
   processingStatus: string,
   leaseExpiresAtMillis: number | undefined,
   now: number,
+  processingAttempts = 0,
 ): boolean {
+  if (processingAttempts >= PROCESSING_MAX_ATTEMPTS) return false;
   if (processingStatus === "PENDING") return true;
   if (
     processingStatus === "PROCESSING" &&

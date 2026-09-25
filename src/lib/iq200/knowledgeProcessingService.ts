@@ -4,6 +4,7 @@ import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { adminDb } from "@/lib/firebaseAdmin";
 import {
   PROCESSING_LEASE_MILLISECONDS,
+  PROCESSING_MAX_ATTEMPTS,
   KnowledgeProcessingError,
   generateProcessingAttemptId,
   verifyAttemptOwnership,
@@ -19,6 +20,84 @@ export interface ProcessingClaim {
   documentId: string;
   processingAttemptId: string;
   processingAttempts: number;
+}
+
+export const INITIAL_PROCESSING_ENQUEUE_GENERATION = 1;
+
+export type ProcessingEnqueueIdentity = {
+  companyId: string;
+  documentId: string;
+  enqueueGeneration: number;
+};
+
+export type ProcessingGenerationSnapshot = {
+  exists: boolean;
+  data(): Record<string, unknown> | undefined;
+};
+
+export type ProcessingGenerationTransaction = {
+  get(ref: unknown): Promise<ProcessingGenerationSnapshot>;
+  update(ref: unknown, fields: Record<string, unknown>): void;
+};
+
+export type ProcessingGenerationStore = {
+  doc(path: string): unknown;
+  runTransaction<T>(work: (transaction: ProcessingGenerationTransaction) => Promise<T>): Promise<T>;
+};
+
+const processingGenerationStore: ProcessingGenerationStore = {
+  doc: (path) => adminDb.doc(path),
+  runTransaction: (work) => adminDb.runTransaction(async (transaction) => work(transaction as unknown as ProcessingGenerationTransaction)),
+};
+
+const PROCESSING_DOCUMENT_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
+export async function advanceProcessingEnqueueGeneration(
+  companyId: string,
+  documentId: string,
+  store: ProcessingGenerationStore = processingGenerationStore,
+): Promise<number> {
+  if (!PROCESSING_DOCUMENT_ID_PATTERN.test(companyId) || !PROCESSING_DOCUMENT_ID_PATTERN.test(documentId)) {
+    throw new KnowledgeProcessingError("PERSISTENCE_FAILED", "Processing document identity is invalid.", 400);
+  }
+
+  const ref = store.doc(`companies/${companyId}/iq200_documents/${documentId}`);
+  return store.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists) {
+      throw new KnowledgeProcessingError("PERSISTENCE_FAILED", "Processing document does not exist.", 404);
+    }
+
+    const data = snapshot.data();
+    if (
+      !data ||
+      data.companyId !== companyId ||
+      data.documentId !== documentId ||
+      data.processingStatus !== "PENDING"
+    ) {
+      throw new KnowledgeProcessingError("PERSISTENCE_FAILED", "Processing document is not eligible for re-enqueue.", 409);
+    }
+
+    const currentGeneration = data.processingEnqueueGeneration;
+    if (
+      typeof currentGeneration !== "number" ||
+      !Number.isInteger(currentGeneration) ||
+      !Number.isSafeInteger(currentGeneration) ||
+      currentGeneration < INITIAL_PROCESSING_ENQUEUE_GENERATION ||
+      currentGeneration >= Number.MAX_SAFE_INTEGER
+    ) {
+      throw new KnowledgeProcessingError("PERSISTENCE_FAILED", "Processing enqueue generation is invalid.", 500);
+    }
+    const nextGeneration = currentGeneration + 1;
+    if (!Number.isSafeInteger(nextGeneration)) {
+      throw new KnowledgeProcessingError("PERSISTENCE_FAILED", "Processing enqueue generation could not advance.", 500);
+    }
+    transaction.update(ref, {
+      processingEnqueueGeneration: nextGeneration,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return nextGeneration;
+  });
 }
 
 // ─── Candidate Search ─────────────────────────────────────────────────────────
@@ -67,7 +146,21 @@ export async function claimNextPendingDocument(): Promise<ProcessingClaim | null
     const now = Date.now();
 
     const leaseExpiresAtMillis = data.processingLeaseExpiresAt?.toMillis?.() || undefined;
-    if (!isEligibleForClaim(data.processingStatus, leaseExpiresAtMillis, now)) {
+    const currentAttempts = Number(data.processingAttempts || 0);
+    if (!isEligibleForClaim(data.processingStatus, leaseExpiresAtMillis, now, currentAttempts)) {
+      if (
+        currentAttempts >= PROCESSING_MAX_ATTEMPTS &&
+        (data.processingStatus === "PENDING" ||
+          (data.processingStatus === "PROCESSING" && leaseExpiresAtMillis !== undefined && leaseExpiresAtMillis <= now))
+      ) {
+        transaction.update(candidate.ref, {
+          processingStatus: "FAILED",
+          processingFailureCode: "TIMEOUT",
+          processingFailedAt: FieldValue.serverTimestamp(),
+          processingLeaseExpiresAt: null,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
       return null;
     }
 

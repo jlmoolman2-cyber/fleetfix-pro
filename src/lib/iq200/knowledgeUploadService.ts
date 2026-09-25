@@ -15,8 +15,10 @@ import {
   buildStoragePath,
   type KnowledgeUploadResult,
 } from "./knowledgeUploadCore";
+import { INITIAL_PROCESSING_ENQUEUE_GENERATION } from "./knowledgeProcessingService";
 
 const UPLOAD_KNOWLEDGE_PERMISSION = "Upload IQ200 Knowledge";
+type EnqueueableUploadResult = KnowledgeUploadResult & { processingEnqueueGeneration: number };
 
 function requireUploadKnowledgePermission(context: ServerUserContext): void {
   const permissions = effectivePermissions(context.companyUser);
@@ -41,7 +43,7 @@ export async function uploadKnowledgeDocument(
   idempotencyKey: string,
   title?: string,
   description?: string,
-): Promise<KnowledgeUploadResult> {
+): Promise<EnqueueableUploadResult> {
   requireUploadKnowledgePermission(context);
   const safeIdempotencyKey = validateIdempotencyKey(idempotencyKey);
   if (!fileBytes || fileBytes.length === 0) {
@@ -81,6 +83,7 @@ export async function uploadKnowledgeDocument(
         processingStatus: "PENDING", approvalStatus: "DRAFT",
         uploadedAt: data.uploadedAt?.toDate?.()?.toISOString?.() || new Date().toISOString(),
         idempotentRetry: true,
+        processingEnqueueGeneration: Number(data.processingEnqueueGeneration || INITIAL_PROCESSING_ENQUEUE_GENERATION),
       };
     }
     return {
@@ -89,6 +92,7 @@ export async function uploadKnowledgeDocument(
       sizeBytes: fileBytes.length,
       processingStatus: "PENDING", approvalStatus: "DRAFT",
       uploadedAt: new Date().toISOString(), idempotentRetry: false,
+      processingEnqueueGeneration: result.processingEnqueueGeneration,
     };
   } catch (error) {
     if (storageUploadSucceeded) await compensateStorageObject(storagePath);
@@ -101,7 +105,7 @@ async function runUploadTransaction(
   companyId: string, documentId: string, contentHash: string, storagePath: string,
   safeIdempotencyKey: string, uid: string, sizeBytes: number, safeFilename: string,
   title?: string, description?: string,
-): Promise<{ idempotentRetry: boolean; existingDocumentId: string }> {
+): Promise<{ idempotentRetry: boolean; existingDocumentId: string; processingEnqueueGeneration: number }> {
   return adminDb.runTransaction(async (transaction) => {
     const idemRef = adminDb.doc(`companies/${companyId}/iq200_idempotency_keys/${safeIdempotencyKey}`);
     const idemSnap = await transaction.get(idemRef);
@@ -110,7 +114,11 @@ async function runUploadTransaction(
       if (idemData?.contentHash && idemData.contentHash !== contentHash) {
         throw new KnowledgeUploadError("IDEMPOTENCY_CONFLICT", "This Idempotency-Key was already used for a different upload.", 409);
       }
-      return { idempotentRetry: true, existingDocumentId: idemData?.documentId as string };
+      return {
+        idempotentRetry: true,
+        existingDocumentId: idemData?.documentId as string,
+        processingEnqueueGeneration: INITIAL_PROCESSING_ENQUEUE_GENERATION,
+      };
     }
     const hashRef = adminDb.doc(`companies/${companyId}/iq200_content_hashes/${contentHash}`);
     const hashSnap = await transaction.get(hashRef);
@@ -127,6 +135,7 @@ async function runUploadTransaction(
       sizeBytes, contentHash, storagePath,
       uploadedBy: uid, uploadedAt: now,
       processingStatus: "PENDING", approvalStatus: "DRAFT",
+      processingEnqueueGeneration: INITIAL_PROCESSING_ENQUEUE_GENERATION,
       manufacturer: "", vehicleMake: "", vehicleModel: "", vehicleSeries: "",
       system: "", subsystem: "", component: "",
       documentType: "technical_reference", documentVersion: "",
@@ -134,6 +143,10 @@ async function runUploadTransaction(
     });
     transaction.create(idemRef, { companyId, documentId, contentHash, createdAt: now });
     transaction.create(hashRef, { companyId, documentId, createdAt: now });
-    return { idempotentRetry: false, existingDocumentId: documentId };
+    return {
+      idempotentRetry: false,
+      existingDocumentId: documentId,
+      processingEnqueueGeneration: INITIAL_PROCESSING_ENQUEUE_GENERATION,
+    };
   });
 }

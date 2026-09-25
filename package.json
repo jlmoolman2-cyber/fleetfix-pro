@@ -14,6 +14,7 @@
     "phones:backfill": "node scripts/backfill_whatsapp_phone_indexes.mjs"
   },
   "dependencies": {
+    "@google-cloud/tasks": "^7.2.0",
     "@react-pdf/renderer": "^4.5.1",
     "@types/jsbarcode": "^3.11.4",
     "@types/qrcode": "^1.5.6",
