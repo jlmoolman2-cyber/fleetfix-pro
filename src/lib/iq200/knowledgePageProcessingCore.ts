@@ -59,7 +59,7 @@ export interface KnowledgePageProcessingDependencies {
   }): Promise<void>;
   complete(invocation: ProcessingInvocation, pageCount: number): Promise<void>;
   compensate(invocation: ProcessingInvocation, pageIds: string[], assetPaths: string[]): Promise<void>;
-  fail(invocation: ProcessingInvocation, code: ProcessingFailureCode): Promise<void>;
+  fail(invocation: ProcessingInvocation, code: ProcessingFailureCode): Promise<{ recorded: boolean } | void>;
 }
 
 export interface KnowledgePageProcessingResult {
@@ -67,6 +67,16 @@ export interface KnowledgePageProcessingResult {
   processingAttemptId: string;
   pageCount: number;
   processingStatus: "READY";
+}
+
+export class ProcessingApplicationFailureError extends Error {
+  readonly code: ProcessingFailureCode;
+
+  constructor(code: ProcessingFailureCode, message: string) {
+    super(message);
+    this.name = "ProcessingApplicationFailureError";
+    this.code = code;
+  }
 }
 
 export function assertOwnedProcessingAttempt(data: ProcessingDocumentData | undefined, claim: ClaimedKnowledgeDocument): void {
@@ -234,12 +244,12 @@ export function createKnowledgeProcessingAdapters(
     },
 
     async fail(invocation, code) {
-      await state.runTransaction(async (transaction) => {
+      const updated = await state.runTransaction(async (transaction) => {
         const data = await transaction.getDocument(invocation);
         try {
           assertOwnedProcessingInvocation(data, invocation);
         } catch {
-          return;
+          return false;
         }
         transaction.updateDocument(invocation, {
           processingStatus: "FAILED",
@@ -248,7 +258,18 @@ export function createKnowledgeProcessingAdapters(
           processingLeaseExpiresAt: null,
           updatedAt: state.serverTimestamp(),
         });
+        return true;
       });
+      if (!updated) return { recorded: false };
+      const confirmation = await state.runTransaction(async (transaction) => {
+        const data = await transaction.getDocument(invocation);
+        return Boolean(
+          data?.processingStatus === "FAILED" &&
+          data.processingInvocationId === invocation.processingInvocationId &&
+          data.processingInvocationAttemptId === invocation.processingAttemptId,
+        );
+      });
+      return { recorded: confirmation };
     },
   };
 }
@@ -296,7 +317,15 @@ export async function processClaimedKnowledgeDocumentCore(
     return { documentId: invocation.documentId, processingAttemptId: invocation.processingAttemptId, pageCount: parsed.pageCount, processingStatus: "READY" };
   } catch (error) {
     await dependencies.compensate(invocation, pageIds, assetPaths).catch(() => undefined);
-    await dependencies.fail(invocation, failureCode(error)).catch(() => undefined);
+    const code = failureCode(error);
+    let failureRecorded = false;
+    try {
+      const result = await dependencies.fail(invocation, code);
+      failureRecorded = Boolean(result && result.recorded === true);
+    } catch {
+      // Preserve retryability when the durable failure transition itself fails.
+    }
+    if (failureRecorded) throw new ProcessingApplicationFailureError(code, error instanceof Error ? error.message : "Processing failure was durably recorded.");
     throw error;
   }
 }

@@ -8,6 +8,35 @@ import { randomUUID, timingSafeEqual } from "node:crypto";
 
 export const PROCESSING_LEASE_MILLISECONDS = 5 * 60 * 1000; // 5 minutes
 export const PROCESSING_MAX_ATTEMPTS = 3;
+export const PROCESSING_SERVER_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
+export type ProcessingTaskDescriptor = {
+  companyId: string;
+  documentId: string;
+  processingEnqueueGeneration: number;
+};
+
+export function parseProcessingTaskDescriptor(value: unknown): ProcessingTaskDescriptor {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new KnowledgeProcessingError("INVALID_TASK", "Processing task descriptor is invalid.", 400);
+  }
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).sort().join(",") !== "companyId,documentId,processingEnqueueGeneration") {
+    throw new KnowledgeProcessingError("INVALID_TASK", "Processing task descriptor is invalid.", 400);
+  }
+  if (
+    typeof record.companyId !== "string" ||
+    !PROCESSING_SERVER_ID_PATTERN.test(record.companyId) ||
+    typeof record.documentId !== "string" ||
+    !PROCESSING_SERVER_ID_PATTERN.test(record.documentId) ||
+    typeof record.processingEnqueueGeneration !== "number" ||
+    !Number.isSafeInteger(record.processingEnqueueGeneration) ||
+    record.processingEnqueueGeneration < 1
+  ) {
+    throw new KnowledgeProcessingError("INVALID_TASK", "Processing task descriptor is invalid.", 400);
+  }
+  return record as ProcessingTaskDescriptor;
+}
 
 // ─── Attempt ID ───────────────────────────────────────────────────────────────
 

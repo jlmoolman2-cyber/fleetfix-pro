@@ -18,7 +18,8 @@ export type ProcessingTaskConfig = {
   queue: string;
   targetUrl: string;
   targetOrigin: string;
-  workerSecret: string;
+  oidcServiceAccount: string;
+  oidcAudience: string;
 };
 export type ProcessingTaskRequest = {
   parent: string;
@@ -27,7 +28,9 @@ export type ProcessingTaskRequest = {
     httpRequest: {
       httpMethod: "POST";
       url: string;
-      headers: { Authorization: string };
+      headers: { "Content-Type": "application/json" };
+      body: string;
+      oidcToken: { serviceAccountEmail: string; audience: string };
     };
   };
 };
@@ -60,7 +63,8 @@ export function readProcessingTaskConfig(environment: ProcessingTaskEnvironment 
     queue: requiredEnvironmentValue(environment, "IQ200_CLOUD_TASKS_QUEUE"),
     targetUrl: requiredEnvironmentValue(environment, "IQ200_PROCESSING_TARGET_URL"),
     targetOrigin: requiredEnvironmentValue(environment, "IQ200_PROCESSING_TARGET_ORIGIN"),
-    workerSecret: requiredEnvironmentValue(environment, "IQ200_PROCESSING_WORKER_SECRET"),
+    oidcServiceAccount: requiredEnvironmentValue(environment, "IQ200_PROCESSING_OIDC_SERVICE_ACCOUNT"),
+    oidcAudience: requiredEnvironmentValue(environment, "IQ200_PROCESSING_OIDC_AUDIENCE"),
   };
   if (!RESOURCE_ID_PATTERN.test(config.project) || !RESOURCE_ID_PATTERN.test(config.location) || !RESOURCE_ID_PATTERN.test(config.queue)) {
     throw new KnowledgeProcessingEnqueueError("CONFIG_INVALID");
@@ -87,11 +91,13 @@ export function readProcessingTaskConfig(environment: ProcessingTaskEnvironment 
     target.password ||
     target.search ||
     target.hash ||
-    target.pathname !== PROCESSING_TASK_PATH
+    target.pathname !== PROCESSING_TASK_PATH ||
+    !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.iam\.gserviceaccount\.com$/.test(config.oidcServiceAccount) ||
+    config.oidcAudience !== target.toString()
   ) {
     throw new KnowledgeProcessingEnqueueError("CONFIG_INVALID");
   }
-  return { ...config, targetUrl: target.toString(), targetOrigin: expectedOrigin.origin };
+  return { ...config, targetUrl: target.toString(), targetOrigin: expectedOrigin.origin, oidcAudience: target.toString() };
 }
 
 export function deterministicProcessingTaskId(identity: ProcessingTaskIdentity): string {
@@ -120,7 +126,16 @@ function buildProcessingTaskRequest(
       httpRequest: {
         httpMethod: "POST",
         url: config.targetUrl,
-        headers: { Authorization: `Bearer ${config.workerSecret}` },
+        headers: { "Content-Type": "application/json" },
+        body: Buffer.from(JSON.stringify({
+          companyId: identity.companyId,
+          documentId: identity.documentId,
+          processingEnqueueGeneration: identity.enqueueGeneration,
+        }), "utf8").toString("base64"),
+        oidcToken: {
+          serviceAccountEmail: config.oidcServiceAccount,
+          audience: config.oidcAudience,
+        },
       },
     },
   };

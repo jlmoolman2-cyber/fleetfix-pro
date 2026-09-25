@@ -10,6 +10,7 @@ import {
   verifyAttemptOwnership,
   isEligibleForClaim,
   isValidFailureCode,
+  type ProcessingTaskDescriptor,
   type ProcessingFailureCode,
 } from "./knowledgeProcessingCore";
 
@@ -21,6 +22,30 @@ export interface ProcessingClaim {
   processingAttemptId: string;
   processingAttempts: number;
 }
+
+export type DocumentClaimOutcome =
+  | { kind: "claimed"; claim: ProcessingClaim }
+  | { kind: "handled"; reason: "MISSING" | "STALE_GENERATION" | "INELIGIBLE" | "READY" | "FAILED" | "ACTIVE_OWNER" | "ATTEMPT_LIMIT" };
+
+export type ProcessingClaimSnapshot = {
+  exists: boolean;
+  data(): Record<string, any> | undefined;
+};
+
+export type ProcessingClaimTransaction = {
+  get(ref: unknown): Promise<ProcessingClaimSnapshot>;
+  update(ref: unknown, fields: Record<string, unknown>): void;
+};
+
+export type ProcessingClaimStore = {
+  doc(path: string): unknown;
+  runTransaction<T>(work: (transaction: ProcessingClaimTransaction) => Promise<T>): Promise<T>;
+};
+
+const processingClaimStore: ProcessingClaimStore = {
+  doc: (path) => adminDb.doc(path),
+  runTransaction: (work) => adminDb.runTransaction(async (transaction) => work(transaction as unknown as ProcessingClaimTransaction)),
+};
 
 export const INITIAL_PROCESSING_ENQUEUE_GENERATION = 1;
 
@@ -97,6 +122,63 @@ export async function advanceProcessingEnqueueGeneration(
       updatedAt: FieldValue.serverTimestamp(),
     });
     return nextGeneration;
+  });
+}
+
+export async function claimProcessingDocument(descriptor: ProcessingTaskDescriptor, store: ProcessingClaimStore = processingClaimStore): Promise<DocumentClaimOutcome> {
+  const ref = store.doc(`companies/${descriptor.companyId}/iq200_documents/${descriptor.documentId}`);
+  return store.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(ref);
+    if (!snapshot.exists) return { kind: "handled", reason: "MISSING" };
+    const data = snapshot.data() || {};
+    if (data.companyId !== descriptor.companyId || data.documentId !== descriptor.documentId) {
+      return { kind: "handled", reason: "MISSING" };
+    }
+    if (data.processingEnqueueGeneration !== descriptor.processingEnqueueGeneration) {
+      return { kind: "handled", reason: "STALE_GENERATION" };
+    }
+
+    const currentAttempts = Number(data.processingAttempts || 0);
+    const leaseExpiresAtMillis = data.processingLeaseExpiresAt?.toMillis?.() || undefined;
+    const now = Date.now();
+    if (data.processingStatus === "READY") return { kind: "handled", reason: "READY" };
+    if (data.processingStatus === "FAILED") return { kind: "handled", reason: "FAILED" };
+    if (data.processingStatus === "PROCESSING" && leaseExpiresAtMillis !== undefined && leaseExpiresAtMillis > now) {
+      return { kind: "handled", reason: "ACTIVE_OWNER" };
+    }
+    if (!isEligibleForClaim(data.processingStatus, leaseExpiresAtMillis, now, currentAttempts)) {
+      if (currentAttempts >= PROCESSING_MAX_ATTEMPTS) {
+        transaction.update(ref, {
+          processingStatus: "FAILED",
+          processingFailureCode: "TIMEOUT",
+          processingFailedAt: FieldValue.serverTimestamp(),
+          processingLeaseExpiresAt: null,
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        return { kind: "handled", reason: "ATTEMPT_LIMIT" };
+      }
+      return { kind: "handled", reason: "INELIGIBLE" };
+    }
+
+    const attemptId = generateProcessingAttemptId();
+    const attempts = currentAttempts + 1;
+    transaction.update(ref, {
+      processingStatus: "PROCESSING",
+      processingAttemptId: attemptId,
+      processingLeaseExpiresAt: Timestamp.fromMillis(now + PROCESSING_LEASE_MILLISECONDS),
+      processingAttempts: attempts,
+      processingClaimedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    return {
+      kind: "claimed",
+      claim: {
+        companyId: descriptor.companyId,
+        documentId: descriptor.documentId,
+        processingAttemptId: attemptId,
+        processingAttempts: attempts,
+      },
+    };
   });
 }
 

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import test from "node:test";
 import type { ProcessingTaskRequest } from "../src/lib/iq200/knowledgeProcessingOrchestrator.ts";
+import type { ProcessingClaimStore, ProcessingClaimTransaction } from "../src/lib/iq200/knowledgeProcessingService.ts";
 import type { ProcessingGenerationStore, ProcessingGenerationTransaction } from "../src/lib/iq200/knowledgeProcessingService.ts";
 import type { KnowledgeUploadRouteDependencies } from "../src/lib/iq200/knowledgeUploadRouteCore.ts";
 
@@ -26,15 +27,17 @@ const orchestrator = await import("../src/lib/iq200/knowledgeProcessingOrchestra
 const uploadRouteCore = await import("../src/lib/iq200/knowledgeUploadRouteCore.ts");
 const processingCore = await import("../src/lib/iq200/knowledgeProcessingCore.ts");
 const processingService = await import("../src/lib/iq200/knowledgeProcessingService.ts");
+const processingOidc = await import("../src/lib/iq200/knowledgeProcessingOidc.ts");
+const processingPageCore = await import("../src/lib/iq200/knowledgePageProcessingCore.ts");
 
-const workerSecret = "unit-test-worker-secret";
 const environment = {
   IQ200_CLOUD_TASKS_PROJECT: "fleetfix-pro-staging",
   IQ200_CLOUD_TASKS_LOCATION: "europe-west4",
   IQ200_CLOUD_TASKS_QUEUE: "iq200-processing",
   IQ200_PROCESSING_TARGET_URL: "https://fleetfix-pro-staging--fleetfix-pro-staging.europe-west4.hosted.app/api/iq200/knowledge/documents/process",
   IQ200_PROCESSING_TARGET_ORIGIN: "https://fleetfix-pro-staging--fleetfix-pro-staging.europe-west4.hosted.app",
-  IQ200_PROCESSING_WORKER_SECRET: workerSecret,
+  IQ200_PROCESSING_OIDC_SERVICE_ACCOUNT: "iq200-processing-task-invoker@fleetfix-pro-staging.iam.gserviceaccount.com",
+  IQ200_PROCESSING_OIDC_AUDIENCE: "https://fleetfix-pro-staging--fleetfix-pro-staging.europe-west4.hosted.app/api/iq200/knowledge/documents/process",
 };
 const identity = { companyId: "company_001", documentId: "document_001", enqueueGeneration: 1 };
 
@@ -52,7 +55,7 @@ function fakeTransport(createTask?: (request: ProcessingTaskRequest) => Promise<
   };
 }
 
-test("orchestrator constructs one POST task for the existing processing path with no body", async () => {
+test("orchestrator constructs one OIDC POST task with a JSON descriptor", async () => {
   const transport = fakeTransport();
   const result = await orchestrator.enqueueKnowledgeProcessingTask(identity, { environment, transport });
   assert.deepEqual(result, { enqueued: true, duplicate: false });
@@ -60,26 +63,40 @@ test("orchestrator constructs one POST task for the existing processing path wit
   const request = transport.requests[0];
   assert.equal(request.task.httpRequest.httpMethod, "POST");
   assert.equal(new URL(request.task.httpRequest.url).pathname, orchestrator.PROCESSING_TASK_PATH);
-  assert.equal("body" in request.task.httpRequest, false);
+  assert.equal(request.task.httpRequest.headers["Content-Type"], "application/json");
+  const decodedBody = JSON.parse(Buffer.from(request.task.httpRequest.body, "base64").toString("utf8"));
+  assert.deepEqual(decodedBody, {
+    companyId: identity.companyId,
+    documentId: identity.documentId,
+    processingEnqueueGeneration: identity.enqueueGeneration,
+  });
+  assert.equal("enqueueGeneration" in decodedBody, false);
+  assert.equal("processingAttemptId" in decodedBody, false);
+  assert.equal("processingInvocationId" in decodedBody, false);
+  assert.deepEqual(request.task.httpRequest.oidcToken, {
+    serviceAccountEmail: environment.IQ200_PROCESSING_OIDC_SERVICE_ACCOUNT,
+    audience: environment.IQ200_PROCESSING_OIDC_AUDIENCE,
+  });
 });
 
-test("worker credential reaches only the injected server transport", async () => {
+test("production task body round-trips through the production descriptor parser", async () => {
   const transport = fakeTransport();
-  assert.equal("buildProcessingTaskRequest" in orchestrator, false);
+  await orchestrator.enqueueKnowledgeProcessingTask(identity, { environment, transport });
+  const body = JSON.parse(Buffer.from(transport.requests[0].task.httpRequest.body, "base64").toString("utf8"));
+  assert.deepEqual(processingCore.parseProcessingTaskDescriptor(body), {
+    companyId: identity.companyId,
+    documentId: identity.documentId,
+    processingEnqueueGeneration: identity.enqueueGeneration,
+  });
+});
+
+test("task contains no static worker credential or ownership identifiers", async () => {
+  const transport = fakeTransport();
   await orchestrator.enqueueKnowledgeProcessingTask(identity, { environment, transport });
   const request = transport.requests[0];
-  assert.equal(request.task.httpRequest.headers.Authorization, `Bearer ${workerSecret}`);
-});
-
-test("task has no ownership or user payload", () => {
-  const transport = fakeTransport();
-  return orchestrator.enqueueKnowledgeProcessingTask(identity, { environment, transport }).then(() => {
-    const request = transport.requests[0];
-    const http = JSON.stringify(request.task.httpRequest);
-    for (const value of [identity.companyId, identity.documentId, "processingAttemptId", "processingInvocationId", "Firebase", "idToken"]) {
-      assert.equal(http.includes(value), false);
-    }
-  });
+  const http = JSON.stringify(request.task.httpRequest);
+  assert.equal("Authorization" in request.task.httpRequest.headers, false);
+  assert.doesNotMatch(http, /worker-secret|processingAttemptId|processingInvocationId|Firebase|idToken/);
 });
 
 test("deterministic identity is stable, opaque, and distinct across documents and generations", () => {
@@ -240,14 +257,136 @@ test("exact trusted target origin and processing path are accepted", () => {
   assert.equal(new URL(config.targetUrl).pathname, orchestrator.PROCESSING_TASK_PATH);
 });
 
+test("OIDC verifier accepts exact verified invoker claims and rejects legacy secret-only requests", async () => {
+  const verified = {
+    iss: "https://accounts.google.com",
+    aud: environment.IQ200_PROCESSING_OIDC_AUDIENCE,
+    email: environment.IQ200_PROCESSING_OIDC_SERVICE_ACCOUNT,
+    email_verified: true,
+    exp: Math.floor(Date.now() / 1000) + 300,
+  };
+  await processingOidc.requireProcessingOidc(
+    new Request("https://test.invalid", { headers: { authorization: "Bearer signed-token" } }),
+    async () => verified,
+    environment,
+  );
+  await assert.rejects(
+    () => processingOidc.requireProcessingOidc(
+      new Request("https://test.invalid", { headers: { authorization: "Bearer old-worker-secret" } }),
+      async () => { throw new Error("invalid token"); },
+      environment,
+    ),
+    (error: unknown) => error instanceof processingCore.KnowledgeProcessingError && error.code === "AUTH_REQUIRED",
+  );
+});
+
+test("OIDC verifier rejects wrong audience, issuer, identity, expiry, and missing token", async () => {
+  const base = {
+    iss: "https://accounts.google.com",
+    aud: environment.IQ200_PROCESSING_OIDC_AUDIENCE,
+    email: environment.IQ200_PROCESSING_OIDC_SERVICE_ACCOUNT,
+    email_verified: true,
+    exp: Math.floor(Date.now() / 1000) + 300,
+  };
+  for (const claims of [
+    { ...base, aud: "https://wrong.invalid" },
+    { ...base, iss: "https://evil.invalid" },
+    { ...base, email: "other@fleetfix-pro-staging.iam.gserviceaccount.com" },
+    { ...base, exp: Math.floor(Date.now() / 1000) - 1 },
+  ]) {
+    await assert.rejects(() => processingOidc.requireProcessingOidc(
+      new Request("https://test.invalid", { headers: { authorization: "Bearer signed-token" } }),
+      async () => claims,
+      environment,
+    ));
+  }
+  await assert.rejects(() => processingOidc.requireProcessingOidc(new Request("https://test.invalid"), async () => base, environment));
+});
+
+function fakeClaimStore(data: Record<string, unknown> | undefined, exists = data !== undefined): ProcessingClaimStore & { updates: Record<string, unknown>[] } {
+  const ref = { path: "companies/company_001/iq200_documents/document_001" };
+  const updates: Record<string, unknown>[] = [];
+  return {
+    updates,
+    doc(path: string) { assert.equal(path, ref.path); return ref; },
+    async runTransaction<T>(work: (transaction: ProcessingClaimTransaction) => Promise<T>) {
+      return work({
+        async get(reference) { assert.equal(reference, ref); return { exists, data: () => data }; },
+        update(reference, fields) { assert.equal(reference, ref); updates.push(fields); },
+      });
+    },
+  };
+}
+
+test("document-specific claim cannot process a different document and fences stale generations", async () => {
+  const descriptor = { companyId: identity.companyId, documentId: identity.documentId, processingEnqueueGeneration: 1 };
+  const store = fakeClaimStore({ companyId: identity.companyId, documentId: identity.documentId, processingStatus: "PENDING", processingEnqueueGeneration: 1 });
+  const claimed = await processingService.claimProcessingDocument(descriptor, store);
+  assert.equal(claimed.kind, "claimed");
+  assert.equal(claimed.claim.documentId, identity.documentId);
+  const stale = await processingService.claimProcessingDocument({ ...descriptor, processingEnqueueGeneration: 2 }, fakeClaimStore({ companyId: identity.companyId, documentId: identity.documentId, processingStatus: "PENDING", processingEnqueueGeneration: 1 }));
+  assert.deepEqual(stale, { kind: "handled", reason: "STALE_GENERATION" });
+});
+
+test("document-specific claim handles READY, terminal FAILED, active owner, and missing documents", async () => {
+  for (const data of [
+    { companyId: identity.companyId, documentId: identity.documentId, processingStatus: "READY", processingEnqueueGeneration: 1 },
+    { companyId: identity.companyId, documentId: identity.documentId, processingStatus: "FAILED", processingEnqueueGeneration: 1 },
+    { companyId: identity.companyId, documentId: identity.documentId, processingStatus: "PROCESSING", processingEnqueueGeneration: 1, processingLeaseExpiresAt: { toMillis: () => Date.now() + 10000 } },
+  ]) {
+    const result = await processingService.claimProcessingDocument({ companyId: identity.companyId, documentId: identity.documentId, processingEnqueueGeneration: 1 }, fakeClaimStore(data));
+    assert.equal(result.kind, "handled");
+  }
+  assert.deepEqual(await processingService.claimProcessingDocument({ companyId: identity.companyId, documentId: identity.documentId, processingEnqueueGeneration: 1 }, fakeClaimStore(undefined, false)), { kind: "handled", reason: "MISSING" });
+});
+
+test("durable failure confirmation distinguishes recorded, stale, and thrown persistence", async () => {
+  const invocation = {
+    companyId: identity.companyId,
+    documentId: identity.documentId,
+    processingAttemptId: "11111111-1111-4111-8111-111111111111",
+    processingInvocationId: "22222222-2222-4222-8222-222222222222",
+  };
+  const baseDependencies = {
+    async acquireSource() { return new Uint8Array([1]); },
+    async parse() { throw new Error("parse failed"); },
+    async renderPage() { throw new Error("unreachable"); },
+    async persistPage() { },
+    async complete() { },
+    async compensate() { },
+  };
+
+  await assert.rejects(
+    () => processingPageCore.processClaimedKnowledgeDocumentCore(invocation, {
+      ...baseDependencies,
+      async fail() { return { recorded: true }; },
+    }),
+    (error: unknown) => error instanceof processingPageCore.ProcessingApplicationFailureError,
+  );
+  await assert.rejects(
+    () => processingPageCore.processClaimedKnowledgeDocumentCore(invocation, {
+      ...baseDependencies,
+      async fail() { return { recorded: false }; },
+    }),
+    (error: unknown) => !(error instanceof processingPageCore.ProcessingApplicationFailureError),
+  );
+  await assert.rejects(
+    () => processingPageCore.processClaimedKnowledgeDocumentCore(invocation, {
+      ...baseDependencies,
+      async fail() { throw new Error("failure persistence unavailable"); },
+    }),
+    /parse failed/,
+  );
+});
+
 test("enqueue failure exposes only a bounded sanitized classification", async () => {
-  const transport = fakeTransport(async () => { throw new Error(`transport leaked ${workerSecret}`); });
+  const transport = fakeTransport(async () => { throw new Error("transport failed"); });
   let caught: unknown;
   try { await orchestrator.enqueueKnowledgeProcessingTask(identity, { environment, transport }); } catch (error) { caught = error; }
   assert.ok(caught instanceof orchestrator.KnowledgeProcessingEnqueueError);
   const diagnostic = orchestrator.processingEnqueueDiagnostic(caught);
   assert.deepEqual(diagnostic, { event: "iq200_processing_enqueue_failed", code: "ENQUEUE_FAILED" });
-  assert.equal(JSON.stringify(diagnostic).includes(workerSecret), false);
+  assert.equal(JSON.stringify(diagnostic).includes("transport failed"), false);
 });
 
 test("orchestrator does not import communications or hosted provider execution", () => {
@@ -342,11 +481,11 @@ test("upload persistence failure enqueues zero tasks", async () => {
 });
 
 test("enqueue failure does not invalidate upload or expand its response", async () => {
-  const harness = routeHarness({ async enqueue() { throw new Error(`hidden ${workerSecret}`); } });
+  const harness = routeHarness({ async enqueue() { throw new Error("hidden credential"); } });
   const response = await harness.post(uploadRequest());
   const body = await response.text();
   assert.equal(response.status, 201);
-  assert.equal(body.includes(workerSecret), false);
+  assert.equal(body.includes("hidden credential"), false);
   assert.equal(body.includes("processingEnqueueGeneration"), false);
   const { processingEnqueueGeneration: _generation, ...expectedResponse } = uploadResult();
   assert.deepEqual(JSON.parse(body), expectedResponse);
