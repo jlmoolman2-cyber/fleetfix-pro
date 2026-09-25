@@ -41,6 +41,28 @@ env:
     secret: iq200ProcessingWorkerSecret
     availability: [RUNTIME]
 
+  - variable: IQ200_CLOUD_TASKS_PROJECT
+    value: "fleetfix-pro-staging"
+    availability: [RUNTIME]
+  - variable: IQ200_CLOUD_TASKS_LOCATION
+    value: "europe-west3"
+    availability: [RUNTIME]
+  - variable: IQ200_CLOUD_TASKS_QUEUE
+    value: "iq200-knowledge-processing-staging"
+    availability: [RUNTIME]
+  - variable: IQ200_PROCESSING_TARGET_URL
+    value: "https://fleetfix-pro-staging--fleetfix-pro-staging.europe-west4.hosted.app/api/iq200/knowledge/documents/process"
+    availability: [RUNTIME]
+  - variable: IQ200_PROCESSING_TARGET_ORIGIN
+    value: "https://fleetfix-pro-staging--fleetfix-pro-staging.europe-west4.hosted.app"
+    availability: [RUNTIME]
+  - variable: IQ200_PROCESSING_OIDC_SERVICE_ACCOUNT
+    value: "iq200-processing-task-invoker@fleetfix-pro-staging.iam.gserviceaccount.com"
+    availability: [RUNTIME]
+  - variable: IQ200_PROCESSING_OIDC_AUDIENCE
+    value: "https://fleetfix-pro-staging--fleetfix-pro-staging.europe-west4.hosted.app/api/iq200/knowledge/documents/process"
+    availability: [RUNTIME]
+
   # IQ200 Phase 7 staging configuration: reasoning and hosted provider armed, commissioning remains closed.
   - variable: IQ200_REASONING_ENABLED
     value: "true"
