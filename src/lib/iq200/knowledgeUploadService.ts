@@ -27,6 +27,20 @@ function requireUploadKnowledgePermission(context: ServerUserContext): void {
   }
 }
 
+function storageSaveDiagnostic(error: unknown, companyId: string, documentId: string) {
+  const details = error && typeof error === "object" ? (error as { name?: unknown; code?: unknown; message?: unknown }) : {};
+  const code = typeof details.code === "string" || typeof details.code === "number" ? details.code : null;
+  return {
+    event: "iq200_upload_storage_failed",
+    operation: "source_save",
+    errorName: typeof details.name === "string" ? details.name.slice(0, 80) : "UnknownError",
+    errorCode: code,
+    message: typeof details.message === "string" ? details.message.slice(0, 200) : "",
+    companyId,
+    documentId,
+  };
+}
+
 async function compensateStorageObject(storagePath: string): Promise<void> {
   try {
     await adminStorage.bucket().file(storagePath).delete();
@@ -64,7 +78,8 @@ export async function uploadKnowledgeDocument(
       metadata: { metadata: { companyId, documentId, contentHash, originalFilename: safeFilename } },
     });
     storageUploadSucceeded = true;
-  } catch {
+  } catch (storageError) {
+    console.error(storageSaveDiagnostic(storageError, companyId, documentId));
     throw new KnowledgeUploadError("UPLOAD_FAILED", "The file could not be stored.", 500);
   }
   try {

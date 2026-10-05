@@ -99,3 +99,44 @@ export function resolveServerFirebaseProject(environment: ServerFirebaseEnvironm
 
   return FIREBASE_PROJECT_IDS[deploymentEnvironment];
 }
+
+function storageBucketFromFirebaseConfig(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value) as { storageBucket?: unknown };
+    return typeof parsed.storageBucket === "string" ? parsed.storageBucket : undefined;
+  } catch {
+    throw new Error("Firebase configuration error: FIREBASE_CONFIG is not valid JSON.");
+  }
+}
+
+function normalizeStorageBucket(value: string | undefined): string | undefined {
+  const bucket = value?.trim().replace(/^gs:\/\//, "").replace(/\/+$/, "");
+  return bucket || undefined;
+}
+
+export function resolveServerStorageBucket(environment: ServerFirebaseEnvironment): string | undefined {
+  const projectId = resolveServerFirebaseProject(environment);
+  const sources: Array<[string, string | undefined]> = [
+    ["FIREBASE_CONFIG.storageBucket", normalizeStorageBucket(storageBucketFromFirebaseConfig(environment.FIREBASE_CONFIG))],
+    ["NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET", normalizeStorageBucket(environment.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET)],
+  ];
+  const configured = sources.filter((entry): entry is [string, string] => Boolean(entry[1]));
+  const [first, ...rest] = configured;
+  if (!first) return undefined;
+
+  const conflicting = rest.find(([, bucket]) => bucket !== first[1]);
+  if (conflicting) {
+    throw new Error(
+      `Firebase configuration error: ${first[0]} and ${conflicting[0]} name different Storage buckets.`,
+    );
+  }
+
+  const allowed = [`${projectId}.firebasestorage.app`, `${projectId}.appspot.com`];
+  if (!allowed.includes(first[1])) {
+    throw new Error(
+      `Firebase configuration error: ${first[0]} is not a Storage bucket of Firebase project '${projectId}'.`,
+    );
+  }
+  return first[1];
+}

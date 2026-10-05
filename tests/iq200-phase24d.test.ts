@@ -20,6 +20,7 @@ const src = (p: string) => readFileSync(p, "utf8");
 const coreSrc = () => src("src/lib/iq200/knowledgeUploadCore.ts");
 const serviceSrc = () => src("src/lib/iq200/knowledgeUploadService.ts");
 const routeSrc = () => src("src/app/api/iq200/knowledge/documents/upload/route.ts");
+const routeCoreSrc = () => src("src/lib/iq200/knowledgeUploadRouteCore.ts");
 
 const makePdfBytes = (size = 100) => {
   const bytes = new Uint8Array(size);
@@ -31,7 +32,8 @@ const makePdfBytes = (size = 100) => {
 // ── AUTH / TENANT (1–7) ──────────────────────────────────────────────────────
 
 test("1. unauthenticated upload denied — route uses authenticateServerRequest", () => {
-  assert.match(routeSrc(), /authenticateServerRequest\(request\)/);
+  assert.match(routeSrc(), /authenticate:\s*authenticateServerRequest/);
+  assert.match(routeCoreSrc(), /dependencies\.authenticate\(request\)/);
 });
 
 test("2. inactive/invalid membership denied — serverAuth rejects non-active membership", () => {
@@ -70,7 +72,7 @@ test("7. cross-company existence not leaked — transaction scoped to companyId"
 // ── FILE VALIDATION (8–14) ───────────────────────────────────────────────────
 
 test("8. missing file rejected", () => {
-  assert.match(routeSrc(), /MISSING_FILE/);
+  assert.match(routeCoreSrc(), /MISSING_FILE/);
   assert.match(serviceSrc(), /MISSING_FILE/);
 });
 
@@ -357,7 +359,7 @@ test("route uses safeServerErrorResponse for unexpected errors", () => {
 });
 
 test("route sets cache-control no-store", () => {
-  assert.match(routeSrc(), /cache-control.*no-store/);
+  assert.match(routeCoreSrc(), /cache-control.*no-store/);
 });
 
 test("Phase 24C contracts remain unmodified", () => {
@@ -366,4 +368,35 @@ test("Phase 24C contracts remain unmodified", () => {
   assert.match(contracts, /isKnowledgeDocumentRetrievable/);
   assert.match(contracts, /KNOWLEDGE_PROCESSING_STATUSES/);
   assert.match(contracts, /KNOWLEDGE_APPROVAL_STATUSES/);
+});
+
+test("Admin initialization passes the resolved storage bucket and keeps the project guard", () => {
+  const admin = src("src/lib/firebaseAdmin.ts");
+  assert.match(admin, /resolveServerStorageBucket\(process\.env\)/);
+  assert.match(admin, /resolveServerFirebaseProject\(process\.env\)/);
+  assert.match(admin, /initializeApp\(\{ projectId, \.\.\.\(storageBucket \? \{ storageBucket \} : \{\}\) \}\)/);
+  assert.doesNotMatch(admin, /credential\s*:|\bcert\(|applicationDefault\(/);
+});
+
+test("no environment-specific bucket name is hard-coded in application source", () => {
+  for (const file of ["src/lib/firebaseAdmin.ts", "src/lib/firebaseEnvironment.ts", "src/lib/iq200/knowledgeUploadService.ts"]) {
+    assert.doesNotMatch(src(file), /fleetfix-pro(-staging)?\.(firebasestorage\.app|appspot\.com)/, file);
+  }
+});
+
+test("storage save failure logs a bounded diagnostic and keeps the public contract", () => {
+  const service = serviceSrc();
+  assert.match(service, /catch \(storageError\)/);
+  assert.match(service, /storageSaveDiagnostic\(storageError, companyId, documentId\)/);
+  assert.match(service, /event: "iq200_upload_storage_failed"/);
+  assert.match(service, /operation: "source_save"/);
+  assert.match(service, /message\.slice\(0, 200\)/);
+  assert.match(service, /throw new KnowledgeUploadError\("UPLOAD_FAILED", "The file could not be stored\.", 500\)/);
+});
+
+test("storage diagnostic does not include bytes, headers, tokens, filenames or request content", () => {
+  const start = serviceSrc().indexOf("function storageSaveDiagnostic");
+  const body = serviceSrc().slice(start, serviceSrc().indexOf("async function compensateStorageObject"));
+  assert.ok(start >= 0 && body.length > 0);
+  assert.doesNotMatch(body, /fileBytes|authorization|token|headers|formData|originalFilename|safeFilename|title|description|stack/i);
 });
