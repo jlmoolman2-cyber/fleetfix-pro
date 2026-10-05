@@ -112,6 +112,12 @@ const sections = [
     icon: "IQ200",
   },
   {
+    title: "IQ200 Knowledge Library",
+    description: "Upload and monitor technical reference documents",
+    href: "/admin/iq200-knowledge",
+    icon: "IQ200",
+  },
+  {
     title: "Job Form Templates",
     description: "Message Templates to Users, Customers, Suppliers",
     href: "/admin/jobforms",
