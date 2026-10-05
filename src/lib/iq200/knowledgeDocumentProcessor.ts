@@ -47,7 +47,12 @@ const stateStore: ProcessingStateStore = {
 const assetStore: ProcessingAssetStore = {
   async download(path) {
     const [buffer] = await adminStorage.bucket().file(path).download();
-    return new Uint8Array(buffer);
+    // Copy into a fresh ArrayBuffer to avoid retaining the Node.js Buffer's
+    // backing store, which can cause DataCloneError in pdfjs-dist's fake
+    // worker structured-clone boundary on Node.js 24+.
+    const bytes = new Uint8Array(buffer.length);
+    bytes.set(buffer);
+    return bytes;
   },
   async save(path, bytes, metadata) {
     await adminStorage.bucket().file(path).save(Buffer.from(bytes), {

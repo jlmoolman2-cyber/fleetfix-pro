@@ -255,3 +255,46 @@ test("23. renderer diagnostic message is normalized and runtime-bounded to 500 c
   const rendererSource = fs.readFileSync("src/lib/iq200/knowledgePdfRenderer.ts", "utf8");
   assert.match(rendererSource, /message:\s*normalizeDiagnosticMessage\(error\)/);
 });
+
+test("24. Buffer-origin PDF bytes get independent backing store and cross pdfjs-dist without DataCloneError", async () => {
+  // Simulate the production data path: @google-cloud/storage returns a Node.js Buffer,
+  // which the processor must copy into a fresh ArrayBuffer before passing to pdfjs-dist.
+  const pdfBytes = createSyntheticPdf({ pages: 1, text: "Buffer Origin Regression" });
+
+  // Wrap in a Node.js Buffer to simulate @google-cloud/storage .download() output.
+  const storageBuffer = Buffer.from(pdfBytes);
+
+  // Apply the SAME copy logic as the production assetStore.download() fix.
+  const copied = new Uint8Array(storageBuffer.length);
+  copied.set(storageBuffer);
+
+  // A. Returned value is Uint8Array.
+  assert.ok(copied instanceof Uint8Array);
+
+  // B. Returned bytes equal the source bytes.
+  assert.equal(copied.length, storageBuffer.length);
+  for (let i = 0; i < copied.length; i++) {
+    assert.equal(copied[i], storageBuffer[i], `byte mismatch at index ${i}`);
+  }
+
+  // C. Returned Uint8Array does NOT retain the source Buffer's backing ArrayBuffer.
+  assert.notEqual(copied.buffer, storageBuffer.buffer, "backing ArrayBuffer must be independent");
+
+  // Mutation isolation: mutating the original source Buffer must not affect the copy.
+  const originalFirstByte = storageBuffer[0];
+  storageBuffer[0] = 0xff;
+  assert.equal(copied[0], originalFirstByte, "mutation of source Buffer must not affect the copy");
+  storageBuffer[0] = originalFirstByte; // restore
+
+  // D. The copied bytes successfully cross the pdfjs-dist load/render path without DataCloneError.
+  const result = await renderPdfPageToPng(copied, 0);
+  assert.equal(result.pageIndex, 0);
+  assert.equal(result.mimeType, "image/png");
+  assert.ok(result.pngBytes.length > 0);
+
+  // E. Valid PDF content remains intact (page dimensions match expected A4 at 300 DPI).
+  const expectedWidth = Math.ceil(595.28 * (300 / 72));
+  const expectedHeight = Math.ceil(841.89 * (300 / 72));
+  assert.equal(result.widthPixels, expectedWidth);
+  assert.equal(result.heightPixels, expectedHeight);
+});
