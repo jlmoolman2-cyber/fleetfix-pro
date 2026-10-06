@@ -3,7 +3,7 @@ import { FieldPath } from "firebase-admin/firestore";
 import { adminDb, adminStorage } from "@/lib/firebaseAdmin";
 import { authenticateServerRequest, safeServerErrorResponse, ServerAccessError, type ServerUserContext } from "@/lib/serverAuth";
 import { authorisedJob, getIQ200JobContext } from "./service";
-import { handleKnowledgeRequest, type KnowledgeReadDependencies, type KnowledgeOperation, type ServicePage } from "./knowledgeRetrievalServiceCore";
+import { handleKnowledgeRequest, searchTechnicalKnowledge, type KnowledgeReadDependencies, type KnowledgeOperation, type ServicePage } from "./knowledgeRetrievalServiceCore";
 import type { RetrievalDocument } from "./knowledgeRetrievalContracts";
 
 const text = (value: unknown): string => typeof value === "string" ? value : "";
@@ -92,4 +92,8 @@ function readDependencies(context: ServerUserContext): KnowledgeReadDependencies
 }
 export async function technicalKnowledgeRequest(request: Request, params: { jobId: string; documentId?: string; pageId?: string }, operation: KnowledgeOperation): Promise<Response> {
   return handleKnowledgeRequest(request, params, operation, authenticateServerRequest, context => readDependencies(context as ServerUserContext), safeServerErrorResponse);
+}
+
+export async function retrieveTechnicalKnowledgeForJob(context: ServerUserContext, jobId: string, input: unknown) {
+  return searchTechnicalKnowledge(context, jobId, input, readDependencies(context));
 }

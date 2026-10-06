@@ -1,3 +1,7 @@
+import { registerHooks } from "node:module";
+import { retrieveKnowledgePages } from "../src/lib/iq200/knowledgeRetrievalCore.ts";
+import { hashProcessingContent } from "../src/lib/iq200/knowledgePageProcessingCore.ts";
+import { technicalAdjunct } from "../src/lib/iq200/technicalReasoningEvidenceCore.ts";
 // ═══════════════════════════════════════════════════════════════════════════
 // PHASE 14 — INTEGRATION / SECURITY REGRESSION SUITE
 // Proves that the IQ200 protections from Phases 1–13D-2 continue to hold
@@ -73,7 +77,32 @@ import {
   type ReasoningResponse,
 } from "../src/lib/iq200/reasoningCore.ts";
 
+
+
+
 const source = (path: string) => readFileSync(path, "utf8");
+
+// R3: exercise the real browser-envelope sanitizer with a controlled hosted outcome.
+const r3ReasoningKey="__p14R3Outcome";
+const r3Module=(code:string)=>'data:text/javascript,'+encodeURIComponent(code);
+const r3ErrorModule=new URL("../src/lib/serverAuthCore.ts",import.meta.url).href;
+const r3ReasoningHooks=registerHooks({resolve(specifier,context,next){
+  if(specifier==="server-only")return {url:r3Module('export {}'),shortCircuit:true};
+  if(specifier==="@/lib/serverAuth")return {url:r3Module('export {ServerAccessError} from '+JSON.stringify(r3ErrorModule)+'; export async function resolveServerUser(){throw Error("Unexpected source revalidation") }'),shortCircuit:true};
+  if(specifier==="@/lib/firebaseAdmin")return {url:r3Module('export const adminDb={batch(){throw Error("Unexpected write")}}'),shortCircuit:true};
+  if(specifier==="firebase-admin/firestore")return {url:r3Module('export const FieldValue={serverTimestamp(){throw Error("Unexpected write")}}'),shortCircuit:true};
+  if(specifier==="./service"&&context.parentURL?.endsWith("reasoningService.ts"))return {url:r3Module('const session={id:"session-a",get:async()=>({exists:true,data:()=>({companyId:"company-a",jobId:"job-a"})})};const job={id:"job-a",ref:{collection:()=>({doc:()=>session})}};export async function authorisedJob(){return {data:{},snapshot:job}};export async function getIQ200JobContext(){throw Error("Unexpected job evidence") }'),shortCircuit:true};
+  if(specifier==="./knowledgeRetrievalService"&&context.parentURL?.endsWith("reasoningService.ts"))return {url:r3Module('export async function retrieveTechnicalKnowledgeForJob(){throw Error("Unexpected retrieval") }'),shortCircuit:true};
+  if(specifier==="./hostedReasoningService"&&context.parentURL?.endsWith("reasoningService.ts"))return {url:r3Module('const controlledHostedOutcome = async () => Reflect.get(globalThis,'+JSON.stringify(r3ReasoningKey)+');export { controlledHostedOutcome as runHostedReasoning };'),shortCircuit:true};
+  if(specifier==="./hostedServerConfig")return {url:r3Module('export function getHostedReasoningServerConfig(){return {}}'),shortCircuit:true};
+  if(specifier==="./hostedConfig"&&context.parentURL?.endsWith("reasoningService.ts"))return {url:r3Module('export function hostedExecutionAllowed(){return true}'),shortCircuit:true};
+  if(specifier==="./historyService")return {url:r3Module('export async function searchIQ200History(){throw Error("Unexpected history read") }'),shortCircuit:true};
+  if(specifier==="./knownFixService")return {url:r3Module('export async function searchKnownFixesForJob(){throw Error("Unexpected known fix read") }'),shortCircuit:true};
+  if(specifier.startsWith("@/"))return {url:new URL('../src/'+specifier.slice(2)+'.ts',import.meta.url).href,shortCircuit:true};
+  if(specifier.startsWith(".")&&context.parentURL?.includes("/src/")&&!/\.(ts|js|mjs)$/.test(specifier))return {url:new URL(specifier+'.ts',context.parentURL).href,shortCircuit:true};
+  return next(specifier,context);
+}});
+const r3ReasoningService=await import("../src/lib/iq200/reasoningService.ts");r3ReasoningHooks.deregister();
 const section = (value: string, start: string, end: string) => {
   const startIndex = value.indexOf(start);
   if (startIndex < 0) return "";
@@ -331,24 +360,34 @@ test("P14C.5 assessment DTO excludes interaction/provider/audit metadata", () =>
     assert.doesNotMatch(retrieval, new RegExp(`\\b${field}\\s*:`), field);
   }
   assert.doesNotMatch(retrieval, /interactions\.docs\[0\]\.id/);
-  assert.doesNotMatch(retrieval, /\.\.\./);
+  assert.doesNotMatch(retrieval, /\.\.\.(?:stored|data|rawResponse|outcome|providerResult)|\.\.\.interaction\.data/);
+  assert.deepEqual([...retrieval.matchAll(/\.\.\.([A-Za-z][A-Za-z0-9_]*)/g)].map(match=>match[1]),["adjunct"]);
+  assert.match(retrieval,/const adjunct = validatePersistedTechnicalAdjunct\(validated, stored\.question/);
+  assert.match(retrieval,/summary: validated\.summary/);
 });
 
-test("P14C.6 reasoning browser response returns only the documented surface", () => {
-  const reasoning = reasoningServiceSrc();
-  // Hosted outcome is destructured so interactionId/kind/requestId/retried stay server-side.
-  assert.match(reasoning, /const\{interactionId,kind,requestId,retried,\.\.\.safeOutcome\}=outcome/);
-  assert.match(reasoning, /return\{featureState:safeOutcome\.featureState,message:safeOutcome\.message,response:safeOutcome\.response\?\?null\}/);
-  // Each browser return expression carries only featureState/message/response.
-  let found = 0;
-  let index = reasoning.indexOf("return{featureState");
-  while (index >= 0) {
-    const block = reasoning.slice(index, index + 220);
-    assert.doesNotMatch(block, /interactionId|requestId|provider|model|usage|latencyMs/);
-    found += 1;
-    index = reasoning.indexOf("return{featureState", index + 1);
-  }
-  assert.ok(found >= 1, "expected one or more browser-facing reasoning returns");
+test("P14C.6 reasoning browser response returns only the documented surface", async () => {
+  const e:ReasoningEvidence={question:"fuel pressure",currentJob:{jobNumber:"J1",status:"OPEN",vehicle:{make:"",model:"",type:"",engineFamily:"",descriptor:""},complaint:"fuel pressure",faultCodes:["P0087"],notes:[],diagnostics:[]},relatedHistory:[],approvedKnownFixes:[],recentInteractions:[]};
+  const text="P0087 fuel pressure procedure";
+  const retrieved=retrieveKnowledgePages("company-a",[{document:{companyId:"company-a",documentId:"doc-a",title:"Fuel pressure",originalFilename:"manual.pdf",contentHash:hashProcessingContent("pdf"),processingStatus:"READY",approvalStatus:"APPROVED",publishedProcessingAttemptId:"attempt-a",publishedProcessingInvocationId:"invocation-a"},page:{documentId:"doc-a",pageId:"page-000001",pageIndex:0,displayPageNumber:"1",extractedText:text,textContentHash:hashProcessingContent(text),processingAttemptId:"attempt-a",processingInvocationId:"invocation-a"}}],{question:e.question,faultCodes:["P0087"]});
+  e.technicalDocuments=retrieved.evidence;e.technicalRetrievalCoverage=retrieved.coverage;
+  const reply=buildTestReasoningResponse(e);reply.evidenceUsed.push({category:"TECHNICAL_DOCUMENT",reference:retrieved.evidence[0].reference,detail:"Source evidence"});
+  const validated=validateReasoningResponse(reply,evidenceReferenceSet(e)),adjunct=technicalAdjunct(e,validated);
+  const internal={interactionId:"private",kind:"SUCCEEDED",requestId:"private",retried:false,provider:"private",model:"private",usage:{private:true},latencyMs:123,reservation:"private",lease:"private",commissioning:"private",arbitraryOutcomeKey:"private"};
+  const context={companyId:"company-a",uid:"user-a",companyUser:{active:true,permissions:{"View jobs":true,"Use IQ200 Technician Assist":true}},token:{}} as unknown as Parameters<typeof r3ReasoningService.reasonAboutIQ200Session>[0];
+  try {
+    Reflect.set(globalThis,r3ReasoningKey,{featureState:"HOSTED",message:"Validated result",response:validated,...adjunct,...internal});
+    const result=await r3ReasoningService.reasonAboutIQ200Session(context,"job-a","session-a",{question:e.question}) as unknown as Record<string,unknown>;
+    assert.deepEqual(Object.keys(result).sort(),["featureState","message","response","technicalCitations","technicalRetrievalContext"].sort());
+    assert.deepEqual(Object.keys(result.response as object).sort(),["summary","observations","hypotheses","checks","safetyWarnings","missingInformation","evidenceUsed","confidence","limitations"].sort());
+    assert.deepEqual(result.technicalCitations,adjunct.technicalCitations);assert.deepEqual(result.technicalRetrievalContext,{question:e.question});
+    for(const key of Object.keys(internal))assert.ok(!Object.hasOwn(result,key));
+    assert.throws(()=>validateReasoningResponse({...validated,technicalCitations:adjunct.technicalCitations},evidenceReferenceSet(e)));
+    assert.throws(()=>validateReasoningResponse({...validated,technicalRetrievalContext:{question:e.question}},evidenceReferenceSet(e)));
+    Reflect.set(globalThis,r3ReasoningKey,{featureState:"HOSTED",message:"Legacy",response:buildTestReasoningResponse({...e,technicalDocuments:undefined,technicalRetrievalCoverage:undefined}),...internal});
+    const legacy=await r3ReasoningService.reasonAboutIQ200Session(context,"job-a","session-a",{question:e.question});
+    assert.deepEqual(Object.keys(legacy).sort(),["featureState","message","response"]);
+  } finally {Reflect.deleteProperty(globalThis,r3ReasoningKey);}
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

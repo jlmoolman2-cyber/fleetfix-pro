@@ -1,3 +1,4 @@
+import { validatePersistedTechnicalAdjunct } from "./technicalReasoningEvidenceCore.ts";
 import "server-only";
 
 import { randomUUID } from "node:crypto";
@@ -287,9 +288,12 @@ export async function getIQ200SessionAssessment(context: ServerUserContext, jobI
     const rawResponse = interaction.data()?.response as unknown;
     try {
       const validated = validateReasoningResponse(rawResponse);
+      const stored = interaction.data() || {};
+      const adjunct = validatePersistedTechnicalAdjunct(validated, stored.question, {technicalCitations:stored.technicalCitations,technicalRetrievalContext:stored.technicalRetrievalContext});
       // Build the explicit allowlisted DTO from the fully validated response.
       // No raw stored fields and no nested extras may cross the boundary.
       assessment = {
+        ...adjunct,
         summary: validated.summary,
         observations: validated.observations.map((item: string) => item),
         hypotheses: validated.hypotheses.map((hypothesis) => ({

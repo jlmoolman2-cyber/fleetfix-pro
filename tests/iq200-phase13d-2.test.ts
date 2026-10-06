@@ -1,3 +1,8 @@
+import { registerHooks } from "node:module";
+import { retrieveKnowledgePages } from "../src/lib/iq200/knowledgeRetrievalCore.ts";
+import { hashProcessingContent } from "../src/lib/iq200/knowledgePageProcessingCore.ts";
+import { technicalAdjunct } from "../src/lib/iq200/technicalReasoningEvidenceCore.ts";
+import { buildTestReasoningResponse, type ReasoningEvidence } from "../src/lib/iq200/reasoningCore.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -105,7 +110,9 @@ test("P13D2.11 allowlisted DTO returns only session and assessment", () => {
   const projection = section(retrieval, "assessment = {", "      };");
   assert.ok(projection.length > 0, "validated assessment projection must be found");
   assert.match(projection, /summary: validated\.summary[\s\S]*observations: validated\.observations\.map[\s\S]*hypotheses: validated\.hypotheses\.map[\s\S]*checks: validated\.checks\.map[\s\S]*safetyWarnings: validated\.safetyWarnings\.map[\s\S]*missingInformation: validated\.missingInformation\.map[\s\S]*evidenceUsed: validated\.evidenceUsed\.map[\s\S]*confidence: validated\.confidence[\s\S]*limitations: validated\.limitations\.map/);
-  assert.doesNotMatch(projection, /\.\.\.|rawResponse|interaction\.data/);
+  assert.doesNotMatch(projection, /rawResponse|interaction\.data|\.\.\.(?:stored|data|raw)/);
+  assert.deepEqual([...projection.matchAll(/\.\.\.([A-Za-z][A-Za-z0-9_]*)/g)].map(match => match[1]), ["adjunct"]);
+  assert.match(retrieval, /const adjunct = validatePersistedTechnicalAdjunct\(validated, stored\.question/);
   const response = retrieval.slice(retrieval.lastIndexOf("return {")).trimStart();
   assert.match(response, /^return \{\s*session: sessionEntry\(session\.id, session\.data\(\) \|\| \{\}\),\s*assessment,\s*$/);
   assert.doesNotMatch(response, /\.\.\.|interactionId|provider|providerMetadata|companyId|jobId|createdBy|createdAt|updatedBy|updatedAt|approvedBy|approvedAt|rawResponse|interaction\.data/);
@@ -448,7 +455,9 @@ test("P13D2.56 DTO allowlists nested hypothesis/check/evidence fields explicitly
 test("P13D2.57 retrieval introduces no raw spread, reasoning, provider, or write calls", () => {
   const value = service();
   const retrieval = section(value, "export async function getIQ200SessionAssessment", "return {");
-  assert.doesNotMatch(retrieval, /\.\.\./);
+  assert.doesNotMatch(retrieval, /\.\.\.(?:stored|data|rawResponse)|\.\.\.interaction\.data/);
+  assert.deepEqual([...retrieval.matchAll(/\.\.\.([A-Za-z][A-Za-z0-9_]*)/g)].map(match => match[1]), ["adjunct"]);
+  assert.match(retrieval, /const adjunct = validatePersistedTechnicalAdjunct/);
   assert.doesNotMatch(retrieval, /reasonAboutIQ200Session/);
   assert.doesNotMatch(retrieval, /runHostedReasoning/);
   assert.doesNotMatch(retrieval, /configuredReasoningProvider/);
@@ -458,4 +467,81 @@ test("P13D2.57 retrieval introduces no raw spread, reasoning, provider, or write
   assert.doesNotMatch(retrieval, /\.create\(/);
   assert.doesNotMatch(retrieval, /\.delete\(/);
   assert.doesNotMatch(retrieval, /FieldValue\.serverTimestamp\(\)/);
+});
+
+// R3: execute the production assessment service with read-only module doubles.
+const r3Key = "__p13d2R3";
+const r3Url = (code: string) => `data:text/javascript,${encodeURIComponent(code)}`;
+const r3ErrorUrl = new URL("../src/lib/serverAuthCore.ts", import.meta.url).href;
+let r3Records: Record<string, unknown>[] = [];
+let r3Reads = 0;
+const r3Context = { companyId:"company-a", uid:"user-a", token:{}, companyUser:{active:true,permissions:{"View jobs":true,"Use IQ200 Technician Assist":true}} };
+const r3Query = () => ({ where(){return this;},orderBy(){return this;},limit(limit:number){assert.ok(limit>0&&limit<=50);return this;},async get(){r3Reads++;return {docs:r3Records.map((data,index)=>({id:String(index),data:()=>data}))};} });
+const r3Db = {
+  doc(path:string) {
+    assert.equal(path,"companies/company-a/jobs/job-a");
+    const reference = {
+      collection(name:string) {
+        assert.equal(name,"iq200_sessions");
+        return {doc(id:string) {
+          assert.equal(id,"session-a");
+          return {
+            async get(){return {exists:true,id:"session-a",data:()=>({companyId:"company-a",jobId:"job-a"})};},
+            collection(name:string){assert.equal(name,"interactions");return r3Query();},
+          };
+        }};
+      },
+    };
+    return {
+      ...reference,
+      async get(){r3Reads++;return {exists:true,id:"job-a",data:()=>({companyId:"company-a"}),ref:reference};},
+    };
+  },
+};
+Reflect.set(globalThis,r3Key,r3Db);
+const r3Hooks=registerHooks({resolve(specifier,context,next){
+  if(specifier==="server-only")return {url:r3Url("export {}"),shortCircuit:true};
+  if(specifier==="@/lib/firebaseAdmin")return {url:r3Url(`export const adminDb=Reflect.get(globalThis,${JSON.stringify(r3Key)});`),shortCircuit:true};
+  if(specifier==="@/lib/serverAuth")return {url:r3Url(`export {ServerAccessError} from ${JSON.stringify(r3ErrorUrl)}`),shortCircuit:true};
+  if(specifier==="firebase-admin/firestore")return {url:r3Url('export class Timestamp{};export const FieldValue={serverTimestamp(){throw Error("Unexpected write")}}'),shortCircuit:true};
+  if(specifier.startsWith("@/"))return {url:new URL(`../src/${specifier.slice(2)}.ts`,import.meta.url).href,shortCircuit:true};
+  if(specifier.startsWith(".")&&context.parentURL?.includes("/src/")&&!/\.(ts|js|mjs)$/.test(specifier))return {url:new URL(specifier+".ts",context.parentURL).href,shortCircuit:true};
+  return next(specifier,context);
+}});
+const r3Service=await import("../src/lib/iq200/service.ts");r3Hooks.deregister();
+function r3AssessmentFixture() {
+  const e:ReasoningEvidence={question:"fuel pressure",currentJob:{jobNumber:"J1",status:"OPEN",vehicle:{make:"",model:"",type:"",engineFamily:"",descriptor:""},complaint:"fuel pressure",faultCodes:["P0087"],notes:[],diagnostics:[]},relatedHistory:[],approvedKnownFixes:[],recentInteractions:[]};
+  const text="P0087 fuel pressure procedure",result=retrieveKnowledgePages("company-a",[{document:{companyId:"company-a",documentId:"doc-a",title:"Fuel pressure",originalFilename:"manual.pdf",contentHash:hashProcessingContent("pdf"),processingStatus:"READY",approvalStatus:"APPROVED",publishedProcessingAttemptId:"attempt-a",publishedProcessingInvocationId:"invocation-a"},page:{documentId:"doc-a",pageId:"page-000001",pageIndex:0,displayPageNumber:"1",extractedText:text,textContentHash:hashProcessingContent(text),processingAttemptId:"attempt-a",processingInvocationId:"invocation-a"}}],{question:e.question,faultCodes:["P0087"]});
+  e.technicalDocuments=result.evidence;e.technicalRetrievalCoverage=result.coverage;
+  const response=buildTestReasoningResponse(e);response.evidenceUsed.push({category:"TECHNICAL_DOCUMENT",reference:result.evidence[0].reference,detail:"Supplied source"});
+  return {e,response,adjunct:technicalAdjunct(e,response)};
+}
+async function r3ReadAssessment() {return r3Service.getIQ200SessionAssessment(r3Context as unknown as Parameters<typeof r3Service.getIQ200SessionAssessment>[0],"job-a","session-a");}
+test("P13D2.R3-A valid technical adjunct returned by production read-only assessment service",async()=>{
+  const f=r3AssessmentFixture();r3Records=[{success:true,response:f.response,question:f.e.question,...f.adjunct}];
+  const result=await r3ReadAssessment();assert.deepEqual(Object.keys(result).sort(),["assessment","session"]);
+  assert.deepEqual(result.assessment?.technicalCitations,f.adjunct.technicalCitations);assert.deepEqual(result.assessment?.technicalRetrievalContext,{question:f.e.question});
+});
+test("P13D2.R3-B arbitrary stored metadata cannot survive or collide with canonical values",async()=>{
+  const f=r3AssessmentFixture();r3Records=[{success:true,response:f.response,question:f.e.question,...f.adjunct,summary:"forged",unexpectedAdjunctKey:"forged",provider:"secret",requestId:"secret",rawResponse:{secret:true}}];
+  const result=await r3ReadAssessment();assert.equal(result.assessment?.summary,f.response.summary);
+  for(const field of ["unexpectedAdjunctKey","provider","requestId","rawResponse"])assert.ok(!Object.hasOwn(result.assessment!,field));
+});
+test("P13D2.R3-C nested adjunct canonical-field collision rejected, older valid projection survives",async()=>{
+  const f=r3AssessmentFixture();const collision={...f.adjunct.technicalCitations![0],summary:"forged"};
+  r3Records=[{success:true,response:f.response,question:f.e.question,...f.adjunct,technicalCitations:[collision]},{success:true,response:f.response,question:f.e.question,...f.adjunct}];
+  const result=await r3ReadAssessment();assert.equal(result.assessment?.summary,f.response.summary);assert.deepEqual(result.assessment?.technicalCitations,f.adjunct.technicalCitations);
+});
+test("P13D2.R3-D malformed citation/context cannot become trusted assessment adjunct",async()=>{
+  const f=r3AssessmentFixture();for(const adjunct of [{technicalCitations:[{documentId:"forged"}],technicalRetrievalContext:{question:f.e.question}},{...f.adjunct,technicalRetrievalContext:{question:f.e.question,summary:"forged"}}]){
+    r3Records=[{success:true,response:f.response,question:f.e.question,...adjunct}];assert.equal((await r3ReadAssessment()).assessment,null);
+  }
+});
+test("P13D2.R3-E legacy assessment projection remains unchanged without optional adjunct",async()=>{
+  const f=r3AssessmentFixture(),legacy=buildTestReasoningResponse({...f.e,technicalDocuments:undefined,technicalRetrievalCoverage:undefined});
+  r3Records=[{success:true,response:legacy}];const result=await r3ReadAssessment();assert.deepEqual(result.assessment,legacy);
+});
+test("P13D2.R3-F production assessment uses only reads; no provider or write seam exists",async()=>{
+  const f=r3AssessmentFixture();r3Records=[{success:true,response:f.response,question:f.e.question,...f.adjunct}];r3Reads=0;
+  await r3ReadAssessment();assert.equal(r3Reads,2); // company-owned job and bounded interaction query
 });
