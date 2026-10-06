@@ -142,7 +142,9 @@ async function renderSinglePage(document: PDFDocumentProxy, pageIndex: number): 
 }
 
 export async function renderPdfPageToPng(bytes: Uint8Array, pageIndex: number): Promise<RenderedPageResult> {
-  const loadingTask = getDocument({ data: bytes, useSystemFonts: true, disableFontFace: true });
+  const pdfBytes = new Uint8Array(bytes.byteLength);
+  pdfBytes.set(bytes);
+  const loadingTask = getDocument({ data: pdfBytes, useSystemFonts: true, disableFontFace: true });
   let document: PDFDocumentProxy | null = null;
 
   try {
@@ -185,7 +187,9 @@ export async function renderPdfPageToPng(bytes: Uint8Array, pageIndex: number): 
 }
 
 export async function renderPdfPagesToPng(bytes: Uint8Array): Promise<RenderedPageResult[]> {
-  const loadingTask = getDocument({ data: bytes, useSystemFonts: true, disableFontFace: true });
+  const pdfBytes = new Uint8Array(bytes.byteLength);
+  pdfBytes.set(bytes);
+  const loadingTask = getDocument({ data: pdfBytes, useSystemFonts: true, disableFontFace: true });
   let document: PDFDocumentProxy | null = null;
 
   try {

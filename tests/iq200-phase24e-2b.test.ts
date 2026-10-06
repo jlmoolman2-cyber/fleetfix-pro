@@ -293,3 +293,18 @@ test("40. parser input contains no arbitrary URL", async () => {
   assert.ok(!parserSrc.includes("http://"));
   assert.ok(!parserSrc.includes("https://"));
 });
+
+
+test("41. production parser preserves caller-owned PDF bytes", async () => {
+  const source = createSyntheticPdf({ textPerPage: ["Parser ownership regression"] });
+  const originalLength = source.byteLength;
+  const originalBufferLength = source.buffer.byteLength;
+  const originalContent = new Uint8Array(source);
+
+  const result = await parsePdf(source);
+  assert.equal(result.pageCount, 1);
+  assert.ok(result.pages[0].nativeText.includes("Parser ownership regression"));
+  assert.equal(source.byteLength, originalLength);
+  assert.equal(source.buffer.byteLength, originalBufferLength);
+  assert.deepEqual(source, originalContent);
+});

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { jsPDF } from "jspdf";
+import { parsePdf } from "../src/lib/iq200/knowledgePdfParser.ts";
 import { createCanvas } from "@napi-rs/canvas";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import {
@@ -59,9 +60,15 @@ test("4. synthetic PDF loads", async () => {
   await loadingTask.destroy();
 });
 
-test("5. page.render executes", async () => {
+test("5. page.render executes and preserves caller-owned bytes", async () => {
   const pdfBytes = createSyntheticPdf({ pages: 1, text: "Render Execute" });
+  const originalLength = pdfBytes.byteLength;
+  const originalBufferLength = pdfBytes.buffer.byteLength;
+  const originalContent = new Uint8Array(pdfBytes);
   const result = await renderPdfPageToPng(pdfBytes, 0);
+  assert.equal(pdfBytes.byteLength, originalLength);
+  assert.equal(pdfBytes.buffer.byteLength, originalBufferLength);
+  assert.deepEqual(pdfBytes, originalContent);
   assert.equal(result.pageIndex, 0);
   assert.ok(result.pngBytes.length > 0);
 });
@@ -109,9 +116,15 @@ test("11. zero-based page index", async () => {
   assert.deepEqual(pages.map((page) => page.pageIndex), [0, 1, 2]);
 });
 
-test("12. sequential rendering", async () => {
+test("12. sequential rendering preserves caller-owned bytes", async () => {
   const pdfBytes = createSyntheticPdf({ pages: 3, text: "Sequential" });
+  const originalLength = pdfBytes.byteLength;
+  const originalBufferLength = pdfBytes.buffer.byteLength;
+  const originalContent = new Uint8Array(pdfBytes);
   const pages = await renderPdfPagesToPng(pdfBytes);
+  assert.equal(pdfBytes.byteLength, originalLength);
+  assert.equal(pdfBytes.buffer.byteLength, originalBufferLength);
+  assert.deepEqual(pdfBytes, originalContent);
   assert.equal(pages.length, 3);
   assert.equal(pages[0].mimeType, "image/png");
   assert.equal(pages[2].pageIndex, 2);
@@ -297,4 +310,28 @@ test("24. Buffer-origin PDF bytes get independent backing store and cross pdfjs-
   const expectedHeight = Math.ceil(841.89 * (300 / 72));
   assert.equal(result.widthPixels, expectedWidth);
   assert.equal(result.heightPixels, expectedHeight);
+});
+
+
+test("25. production parser then renderer reuse the same attached source bytes", async () => {
+  const masterBytes = createSyntheticPdf({ pageSize: [180, 180], text: "Sequential reuse" });
+  const originalLength = masterBytes.byteLength;
+  const originalBufferLength = masterBytes.buffer.byteLength;
+  const originalContent = new Uint8Array(masterBytes);
+  const assertSourcePreserved = () => {
+    assert.equal(masterBytes.byteLength, originalLength);
+    assert.equal(masterBytes.buffer.byteLength, originalBufferLength);
+    assert.deepEqual(masterBytes, originalContent);
+  };
+
+  const parsed = await parsePdf(masterBytes);
+  assert.equal(parsed.pageCount, 1);
+  assert.ok(parsed.pages[0].nativeText.includes("Sequential reuse"));
+  assertSourcePreserved();
+
+  const rendered = await renderPdfPageToPng(masterBytes, 0);
+  assert.equal(rendered.pageIndex, 0);
+  assert.equal(rendered.mimeType, "image/png");
+  assert.ok(rendered.pngBytes.length > 8);
+  assertSourcePreserved();
 });

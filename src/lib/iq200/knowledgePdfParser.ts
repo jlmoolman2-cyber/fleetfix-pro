@@ -62,8 +62,10 @@ export async function parsePdf(bytes: Uint8Array): Promise<PdfParseResult> {
   let pdfDocument: PDFDocumentProxy | null = null;
 
   try {
+    const pdfBytes = new Uint8Array(bytes.byteLength);
+    pdfBytes.set(bytes);
     pdfDocument = await getDocument({
-      data: bytes,
+      data: pdfBytes,
       disableFontFace: true,
       useSystemFonts: true,
       standardFontDataUrl: undefined,
