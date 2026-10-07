@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
     KnowledgeApiError,
+    approveKnowledgeDocument,
     createKnowledgeIdempotencyKey,
     fetchKnowledgeLibrary,
     knowledgeSurfaceFor,
@@ -48,9 +49,12 @@ export default function KnowledgeLibraryPage() {
     const [uploadError, setUploadError] = useState("");
     const [outcome, setOutcome] = useState<KnowledgeUploadOutcome | null>(null);
     const [inputKey, setInputKey] = useState(0);
+    const [approvingDocuments, setApprovingDocuments] = useState<Record<string, boolean>>({});
+    const [approvalErrors, setApprovalErrors] = useState<Record<string, string>>({});
 
     const idempotencyKey = useRef<string | null>(null);
     const inFlight = useRef(false);
+    const approvalInFlight = useRef(new Set<string>());
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -129,6 +133,33 @@ export default function KnowledgeLibraryPage() {
     };
 
     const canSubmit = uploadState === "ready" || (uploadState === "error" && file !== null && idempotencyKey.current !== null);
+    const approve = async (document: KnowledgeDocument) => {
+        const { documentId } = document;
+        if (
+            capabilities?.approve !== true ||
+            document.processingStatus !== "READY" ||
+            document.approvalStatus !== "DRAFT" ||
+            approvalInFlight.current.has(documentId)
+        ) return;
+
+        approvalInFlight.current.add(documentId);
+        setApprovingDocuments((current) => ({ ...current, [documentId]: true }));
+        setApprovalErrors((current) => ({ ...current, [documentId]: "" }));
+        try {
+            await approveKnowledgeDocument(documentId);
+            await load();
+        } catch (error) {
+            setApprovalErrors((current) => ({
+                ...current,
+                [documentId]: error instanceof KnowledgeApiError
+                    ? `${error.code}: ${error.message}`
+                    : "Approval failed. Refresh the list and try again.",
+            }));
+        } finally {
+            approvalInFlight.current.delete(documentId);
+            setApprovingDocuments((current) => ({ ...current, [documentId]: false }));
+        }
+    };
 
     return (
         <div className="min-h-screen bg-[#f4f7fb] p-8">
@@ -234,6 +265,7 @@ export default function KnowledgeLibraryPage() {
                                 <th className="px-6 py-3">Uploaded</th>
                                 <th className="px-6 py-3">Processing</th>
                                 <th className="px-6 py-3">Approval</th>
+                                <th className="px-6 py-3">Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -245,11 +277,28 @@ export default function KnowledgeLibraryPage() {
                                     <td className="px-6 py-3">{item.uploadedAt ? new Date(item.uploadedAt).toLocaleString() : "—"}</td>
                                     <td className="px-6 py-3"><StatusBadge value={item.processingStatus} /></td>
                                     <td className="px-6 py-3"><StatusBadge value={item.approvalStatus} /></td>
+                                    <td className="px-6 py-3">
+                                        {capabilities?.approve === true && item.processingStatus === "READY" && item.approvalStatus === "DRAFT" ? (
+                                            <>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void approve(item)}
+                                                    disabled={approvingDocuments[item.documentId] === true}
+                                                    className="rounded-lg border border-blue-300 px-3 py-2 text-xs font-bold text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                                >
+                                                    {approvingDocuments[item.documentId] ? "Approving…" : "Approve"}
+                                                </button>
+                                                {approvalErrors[item.documentId] && (
+                                                    <p role="alert" className="mt-2 text-xs text-red-700">{approvalErrors[item.documentId]}</p>
+                                                )}
+                                            </>
+                                        ) : null}
+                                    </td>
                                 </tr>
                             ))}
                             {!documents.length && !loading && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-8 text-center text-gray-400">No documents yet.</td>
+                                    <td colSpan={7} className="px-6 py-8 text-center text-gray-400">No documents yet.</td>
                                 </tr>
                             )}
                         </tbody>

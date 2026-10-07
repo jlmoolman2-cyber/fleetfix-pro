@@ -31,6 +31,11 @@ export type KnowledgeUploadResponse = {
 };
 
 export type KnowledgeUploadOutcome = { created: boolean; idempotentRetry: boolean; document: KnowledgeUploadResponse };
+export type KnowledgeApprovalResponse = {
+    documentId: string;
+    processingStatus: string;
+    approvalStatus: string;
+};
 
 type ApiPayload = { error?: { code?: unknown; message?: unknown }; documentId?: unknown; originalFilename?: unknown; processingStatus?: unknown; approvalStatus?: unknown; idempotentRetry?: unknown };
 
@@ -116,6 +121,26 @@ export async function fetchKnowledgeLibrary(
         headers: { authorization },
     });
     return payload as KnowledgeLibraryResponse;
+}
+
+export async function approveKnowledgeDocument(
+    documentId: string,
+    dependencies: KnowledgeClientDependencies = defaultDependencies(),
+): Promise<KnowledgeApprovalResponse> {
+    if (!KNOWLEDGE_IDEMPOTENCY_KEY_PATTERN.test(documentId)) {
+        throw new KnowledgeApiError("INVALID_DOCUMENT_ID", "The knowledge document ID is invalid.", 400);
+    }
+    const authorization = await bearerHeader(dependencies);
+    const { payload } = await send(dependencies, `/api/iq200/knowledge/documents/${encodeURIComponent(documentId)}/approve`, {
+        method: "POST",
+        cache: "no-store",
+        headers: { authorization },
+    });
+    return {
+        documentId: String(payload.documentId || documentId),
+        processingStatus: String(payload.processingStatus || ""),
+        approvalStatus: String(payload.approvalStatus || ""),
+    };
 }
 
 export async function uploadKnowledgePdf(
