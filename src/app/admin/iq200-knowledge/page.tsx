@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import {
     KnowledgeApiError,
     approveKnowledgeDocument,
     createKnowledgeIdempotencyKey,
+    fetchKnowledgeDocumentPreview,
     fetchKnowledgeLibrary,
+    knowledgePreviewVisible,
     knowledgeSurfaceFor,
     uploadKnowledgePdf,
     validateKnowledgePdf,
@@ -14,6 +16,7 @@ import {
     type KnowledgeDocument,
     type KnowledgeUploadOutcome,
 } from "@/lib/iq200/knowledgeClient";
+import type { KnowledgeDocumentPreviewResponse } from "@/lib/iq200/knowledgeContracts";
 
 type UploadState = "idle" | "ready" | "uploading" | "success" | "error";
 
@@ -51,10 +54,15 @@ export default function KnowledgeLibraryPage() {
     const [inputKey, setInputKey] = useState(0);
     const [approvingDocuments, setApprovingDocuments] = useState<Record<string, boolean>>({});
     const [approvalErrors, setApprovalErrors] = useState<Record<string, string>>({});
+    const [previewDocuments, setPreviewDocuments] = useState<Record<string, KnowledgeDocumentPreviewResponse>>({});
+    const [previewLoading, setPreviewLoading] = useState<Record<string, boolean>>({});
+    const [previewErrors, setPreviewErrors] = useState<Record<string, string>>({});
+    const [openPreviews, setOpenPreviews] = useState<Record<string, boolean>>({});
 
     const idempotencyKey = useRef<string | null>(null);
     const inFlight = useRef(false);
     const approvalInFlight = useRef(new Set<string>());
+    const previewInFlight = useRef(new Set<string>());
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -133,6 +141,48 @@ export default function KnowledgeLibraryPage() {
     };
 
     const canSubmit = uploadState === "ready" || (uploadState === "error" && file !== null && idempotencyKey.current !== null);
+    const loadPreview = async (documentId: string, cursor?: string, append = false) => {
+        if (previewInFlight.current.has(documentId)) return;
+        previewInFlight.current.add(documentId);
+        setPreviewLoading((current) => ({ ...current, [documentId]: true }));
+        setPreviewErrors((current) => ({ ...current, [documentId]: "" }));
+        try {
+            const result = await fetchKnowledgeDocumentPreview(documentId, cursor);
+            setPreviewDocuments((current) => {
+                const previous = current[documentId];
+                return {
+                    ...current,
+                    [documentId]: append && previous
+                        ? { ...result, pages: [...previous.pages, ...result.pages] }
+                        : result,
+                };
+            });
+        } catch (error) {
+            setPreviewErrors((current) => ({
+                ...current,
+                [documentId]: error instanceof KnowledgeApiError
+                    ? `${error.code}: ${error.message}`
+                    : "Unable to load processed pages.",
+            }));
+        } finally {
+            previewInFlight.current.delete(documentId);
+            setPreviewLoading((current) => ({ ...current, [documentId]: false }));
+        }
+    };
+
+    const togglePreview = (document: KnowledgeDocument) => {
+        const opening = openPreviews[document.documentId] !== true;
+        setOpenPreviews((current) => ({ ...current, [document.documentId]: opening }));
+        if (opening) {
+            setPreviewDocuments((current) => {
+                const next = { ...current };
+                delete next[document.documentId];
+                return next;
+            });
+            void loadPreview(document.documentId);
+        }
+    };
+
     const approve = async (document: KnowledgeDocument) => {
         const { documentId } = document;
         if (
@@ -269,33 +319,86 @@ export default function KnowledgeLibraryPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {documents.map((item) => (
-                                <tr key={item.documentId} className="border-t border-gray-100">
-                                    <td className="px-6 py-3 font-bold">{item.title || "—"}</td>
-                                    <td className="px-6 py-3">{item.originalFilename}</td>
-                                    <td className="px-6 py-3">{formatSize(item.sizeBytes)}</td>
-                                    <td className="px-6 py-3">{item.uploadedAt ? new Date(item.uploadedAt).toLocaleString() : "—"}</td>
-                                    <td className="px-6 py-3"><StatusBadge value={item.processingStatus} /></td>
-                                    <td className="px-6 py-3"><StatusBadge value={item.approvalStatus} /></td>
-                                    <td className="px-6 py-3">
-                                        {capabilities?.approve === true && item.processingStatus === "READY" && item.approvalStatus === "DRAFT" ? (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void approve(item)}
-                                                    disabled={approvingDocuments[item.documentId] === true}
-                                                    className="rounded-lg border border-blue-300 px-3 py-2 text-xs font-bold text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
-                                                >
-                                                    {approvingDocuments[item.documentId] ? "Approving…" : "Approve"}
-                                                </button>
-                                                {approvalErrors[item.documentId] && (
-                                                    <p role="alert" className="mt-2 text-xs text-red-700">{approvalErrors[item.documentId]}</p>
+                            {documents.map((item) => {
+                                const preview = previewDocuments[item.documentId];
+                                return (
+                                    <Fragment key={item.documentId}>
+                                        <tr className="border-t border-gray-100">
+                                            <td className="px-6 py-3 font-bold">{item.title || "—"}</td>
+                                            <td className="px-6 py-3">{item.originalFilename}</td>
+                                            <td className="px-6 py-3">{formatSize(item.sizeBytes)}</td>
+                                            <td className="px-6 py-3">{item.uploadedAt ? new Date(item.uploadedAt).toLocaleString() : "—"}</td>
+                                            <td className="px-6 py-3"><StatusBadge value={item.processingStatus} /></td>
+                                            <td className="px-6 py-3"><StatusBadge value={item.approvalStatus} /></td>
+                                            <td className="px-6 py-3">
+                                                {knowledgePreviewVisible(capabilities, item.processingStatus) && (
+                                                    <button
+                                                        type="button"
+                                                        aria-expanded={openPreviews[item.documentId] === true}
+                                                        onClick={() => togglePreview(item)}
+                                                        className="mr-2 rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700"
+                                                    >
+                                                        {openPreviews[item.documentId] ? "Hide preview" : "Preview"}
+                                                    </button>
                                                 )}
-                                            </>
-                                        ) : null}
-                                    </td>
-                                </tr>
-                            ))}
+                                                {capabilities?.approve === true && item.processingStatus === "READY" && item.approvalStatus === "DRAFT" ? (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void approve(item)}
+                                                            disabled={approvingDocuments[item.documentId] === true}
+                                                            className="rounded-lg border border-blue-300 px-3 py-2 text-xs font-bold text-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+                                                        >
+                                                            {approvingDocuments[item.documentId] ? "Approving…" : "Approve"}
+                                                        </button>
+                                                        {approvalErrors[item.documentId] && (
+                                                            <p role="alert" className="mt-2 text-xs text-red-700">{approvalErrors[item.documentId]}</p>
+                                                        )}
+                                                    </>
+                                                ) : null}
+                                            </td>
+                                        </tr>
+                                        {openPreviews[item.documentId] === true && (
+                                            <tr>
+                                                <td colSpan={7} className="border-t border-gray-100 bg-gray-50 px-6 py-5">
+                                                    {previewLoading[item.documentId] && <p role="status" className="text-sm text-gray-600">Loading processed pages…</p>}
+                                                    {previewErrors[item.documentId] && <p role="alert" className="text-sm text-red-700">{previewErrors[item.documentId]}</p>}
+                                                    {preview && preview.pages.length === 0 && !previewLoading[item.documentId] && (
+                                                        <p className="text-sm text-gray-600">No processed pages are available.</p>
+                                                    )}
+                                                    {preview?.pages.map((page) => (
+                                                        <article key={page.pageId} className="border-b border-gray-200 py-4 last:border-b-0">
+                                                            <h3 className="font-bold text-gray-900">Page {page.pageNumber}</h3>
+                                                            <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm text-gray-700">
+                                                                {page.extractedText || "No extracted text on this page."}
+                                                            </pre>
+                                                            <dl className="mt-3 grid gap-1 text-xs text-gray-600">
+                                                                <div>Text hash: <span className="font-mono">{page.textContentHash}</span></div>
+                                                                <div>Published ownership: {page.publishedOwnershipVerified ? "Verified" : "Unverified"}</div>
+                                                                <div>
+                                                                    Rendered image: {page.imagePresent
+                                                                        ? `Present (${page.imageWidth} × ${page.imageHeight})`
+                                                                        : "Not available"}
+                                                                </div>
+                                                            </dl>
+                                                        </article>
+                                                    ))}
+                                                    {preview?.nextCursor && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void loadPreview(item.documentId, preview.nextCursor!, true)}
+                                                            disabled={previewLoading[item.documentId] === true}
+                                                            className="mt-4 rounded-lg border border-gray-300 px-3 py-2 text-xs font-bold text-gray-700 disabled:opacity-40"
+                                                        >
+                                                            {previewLoading[item.documentId] ? "Loading…" : "Next pages"}
+                                                        </button>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </Fragment>
+                                );
+                            })}
                             {!documents.length && !loading && (
                                 <tr>
                                     <td colSpan={7} className="px-6 py-8 text-center text-gray-400">No documents yet.</td>

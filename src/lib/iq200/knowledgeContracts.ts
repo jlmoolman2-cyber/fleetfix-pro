@@ -134,6 +134,30 @@ export interface KnowledgePage {
   hasDiagrams?: boolean;
 }
 
+export const KNOWLEDGE_PREVIEW_PAGE_LIMIT = 8;
+export const KNOWLEDGE_PREVIEW_EXCERPT_LIMIT = 1500;
+export const KNOWLEDGE_PREVIEW_TOTAL_TEXT_LIMIT = 12000;
+export const KNOWLEDGE_PREVIEW_IMAGE_DIMENSION_LIMIT = 20000;
+
+export interface KnowledgePreviewPage {
+  pageId: string;
+  pageNumber: string;
+  extractedText: string;
+  textContentHash: string;
+  imagePresent: boolean;
+  imageWidth: number | null;
+  imageHeight: number | null;
+  publishedOwnershipVerified: true;
+}
+
+export interface KnowledgeDocumentPreviewResponse {
+  documentId: string;
+  processingStatus: "READY";
+  approvalStatus: KnowledgeApprovalStatus;
+  pages: KnowledgePreviewPage[];
+  nextCursor: string | null;
+}
+
 // ─── Document Metadata ───────────────────────────────────────────────────────
 
 export interface KnowledgeDocumentMetadata {
