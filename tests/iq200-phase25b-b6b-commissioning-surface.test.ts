@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { registerHooks } from "node:module";
-import { pathToFileURL } from "node:url";
 import test from "node:test";
 
 const dataModule = (source: string) => `data:text/javascript,${encodeURIComponent(source)}`;
-const firebaseEnvironmentUrl = pathToFileURL(resolve("src/lib/firebaseEnvironment.ts")).href;
 
 registerHooks({
     resolve(specifier, context, nextResolve) {
@@ -16,23 +13,13 @@ registerHooks({
                 shortCircuit: true,
             };
         }
-        if (specifier === "@/lib/iq200/service") {
-            return { url: dataModule(`export async function getIQ200JobContext(_context,jobId){return {job:{id:jobId,number:"J-TEST"},currentUser:{name:"Test caller"}}}`), shortCircuit: true };
-        }
-        if (specifier === "@/lib/serverAuth") {
-            return {
-                url: dataModule(`export async function authenticateServerRequest(){return {uid:"user-test",companyId:"comp_001",companyUser:{active:true},token:{}}} export function safeServerErrorResponse(){return Response.json({error:{code:"INTERNAL"}},{status:500})}`),
-                shortCircuit: true,
-            };
-        }
-        if (specifier === "@/lib/firebaseEnvironment") return { url: firebaseEnvironmentUrl, shortCircuit: true };
         return nextResolve(specifier, context);
     },
 });
 
 const client = await import("../src/lib/iq200/client.ts");
-const contextRoute = await import("../src/app/api/iq200/jobs/[jobId]/context/route.ts");
 const pageSource = readFileSync("src/app/jobs/[id]/iq200/page.tsx", "utf8");
+const commissioningPanelSource = readFileSync("src/app/admin/iq200-knowledge/CommissioningPanel.tsx", "utf8");
 
 const citation = {
     evidenceReference: `TECHNICAL_DOCUMENT_${"a".repeat(64)}`,
@@ -77,55 +64,6 @@ async function withFetch<T>(fetcher: typeof fetch, work: () => Promise<T>): Prom
         globalThis.fetch = original;
     }
 }
-
-async function withServerEnvironment<T>(environment: Record<string, string | undefined>, work: () => Promise<T>): Promise<T> {
-    const keys = ["FLEETFIX_ENVIRONMENT", "GOOGLE_CLOUD_PROJECT", "GCLOUD_PROJECT", "FIREBASE_CONFIG", "NEXT_PUBLIC_FIREBASE_PROJECT_ID"];
-    const prior = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
-    for (const key of keys) {
-        const value = environment[key];
-        if (value === undefined) delete process.env[key];
-        else process.env[key] = value;
-    }
-    try {
-        return await work();
-    } finally {
-        for (const key of keys) {
-            const value = prior[key];
-            if (value === undefined) delete process.env[key];
-            else process.env[key] = value;
-        }
-    }
-}
-
-test("server commissioning flag is true only for the validated staging Firebase project", () => {
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", GOOGLE_CLOUD_PROJECT: "fleetfix-pro-staging" }), true);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", GCLOUD_PROJECT: "fleetfix-pro-staging" }), true);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", FIREBASE_CONFIG: JSON.stringify({ projectId: "fleetfix-pro-staging" }) }), true);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "production", GOOGLE_CLOUD_PROJECT: "fleetfix-pro" }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "production", GOOGLE_CLOUD_PROJECT: "fleetfix-pro-staging" }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "unknown", GOOGLE_CLOUD_PROJECT: "fleetfix-pro-staging" }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({}), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging" }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", GOOGLE_CLOUD_PROJECT: "unknown-project" }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", NEXT_PUBLIC_FIREBASE_PROJECT_ID: "fleetfix-pro-staging" }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", FIREBASE_CONFIG: "not-json" }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", FIREBASE_CONFIG: "{}" }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", FIREBASE_CONFIG: JSON.stringify({ other: "fleetfix-pro-staging" }) }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", FIREBASE_CONFIG: JSON.stringify({ projectId: "" }) }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", FIREBASE_CONFIG: "not-json", NEXT_PUBLIC_FIREBASE_PROJECT_ID: "fleetfix-pro-staging" }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", FIREBASE_CONFIG: "{}", NEXT_PUBLIC_FIREBASE_PROJECT_ID: "fleetfix-pro-staging" }), false);
-    assert.equal(contextRoute.commissioningSurfaceAvailableFor({ FLEETFIX_ENVIRONMENT: "staging", GOOGLE_CLOUD_PROJECT: "fleetfix-pro" }), false);
-});
-
-test("authenticated job context response includes the server-derived staging flag", async () => {
-    await withServerEnvironment({ FLEETFIX_ENVIRONMENT: "staging", GOOGLE_CLOUD_PROJECT: "fleetfix-pro-staging" }, async () => {
-        const response = await contextRoute.GET(new Request("https://staging.test/api/iq200/jobs/job-1/context"), { params: Promise.resolve({ jobId: "job-1" }) });
-        assert.equal(response.status, 200);
-        const payload = await response.json();
-        assert.equal(payload.job.id, "job-1");
-        assert.equal(payload.commissioningSurfaceAvailable, true);
-    });
-});
 
 test("standalone B5 helper sends one authenticated POST with only question and optional cursor", async () => {
     const calls: { url: string; init?: RequestInit }[] = [];
@@ -268,66 +206,22 @@ test("same-job B5 result reset invalidates an in-flight image citation before ob
     assert.equal(createUrlCount, 0);
 });
 
-test("commissioning UI is server-flag gated, manually submitted, and isolated from session/reasoning flow", () => {
-    assert.match(pageSource, /context\.commissioningSurfaceAvailable === true/);
-    assert.match(pageSource, /Knowledge Retrieval Commissioning/);
-    assert.match(pageSource, /Run Knowledge Retrieval/);
-    assert.match(pageSource, /Job ID: \{context\.job\.id\}/);
-    assert.equal((pageSource.match(/fetchJobKnowledge\(/g) ?? []).length, 1);
-    const handlerStart = pageSource.indexOf("async function runKnowledgeRetrieval");
-    const handlerEnd = pageSource.indexOf("async function resolveSupportingPage", handlerStart);
-    const handler = pageSource.slice(handlerStart, handlerEnd);
-    assert.match(handler, /await fetchJobKnowledge\(requestJobId, commissioningQuestion\)/);
-    assert.doesNotMatch(handler, /createIQ200Session|\/sessions\/|\/reason|runHostedReasoning|provider/i);
-    const panel = pageSource.slice(pageSource.indexOf("context.commissioningSurfaceAvailable === true"));
-    for (const field of ["citation.documentId", "citation.documentTitle", "citation.pageId", "citation.displayPageNumber", "citation.excerpt", "citation.textContentHash", "relevance.join", "coverage", "continuationCursor"]) {
-        assert.ok(panel.includes(field), `missing response field ${field}`);
-    }
-    assert.match(panel, /Resolve supporting page/);
-    assert.match(panel, /Resolve supporting image/);
-});
-
-test("existing IQ200 normal question action remains separate from the standalone commissioning handler", () => {
-    const handlerStart = pageSource.indexOf("async function runKnowledgeRetrieval");
-    const handlerEnd = pageSource.indexOf("async function resolveSupportingPage", handlerStart);
-    const standaloneHandler = pageSource.slice(handlerStart, handlerEnd);
+test("commissioning is absent from job IQ200 while normal session/reasoning actions remain", () => {
+    assert.doesNotMatch(pageSource, /commissioningSurfaceAvailable|runKnowledgeRetrieval|fetchJobKnowledge|Run Knowledge Retrieval/);
     const normalHandlerStart = pageSource.indexOf("async function startSession");
     const normalHandlerEnd = pageSource.indexOf("async function searchHistory", normalHandlerStart);
     const normalHandler = pageSource.slice(normalHandlerStart, normalHandlerEnd);
     assert.match(normalHandler, /\/sessions/);
     assert.match(normalHandler, /\/reason/);
-    assert.doesNotMatch(standaloneHandler, /\/sessions|\/reason/);
+    assert.match(pageSource, /KnownFixesSection fixes=\{knownFixes\}/);
 });
 
-test("context route derives the flag server-side from the validated project and fails closed", () => {
-    const routeSource = readFileSync("src/app/api/iq200/jobs/[jobId]/context/route.ts", "utf8");
-    assert.match(routeSource, /resolveServerFirebaseProject\(trustedEnvironment\)/);
-    assert.match(routeSource, /catch\s*\{\s*return false/);
-    assert.match(routeSource, /commissioningSurfaceAvailable: commissioningSurfaceAvailableFor\(\)/);
-    assert.doesNotMatch(routeSource, /window\.location|searchParams|localStorage|NEXT_PUBLIC_FLEETFIX_ENVIRONMENT\s*===/);
-});
-
-test("object URL cleanup is wired to result reset, job changes, and component unmount", () => {
-    const cleanupStart = pageSource.indexOf("function clearCommissioningOutput");
-    const effectStart = pageSource.indexOf("useEffect(() => {");
-    const effectEnd = pageSource.indexOf("}, [id]);", effectStart);
-    const retrievalStart = pageSource.indexOf("async function runKnowledgeRetrieval");
-    const retrievalEnd = pageSource.indexOf("async function resolveSupportingPage", retrievalStart);
-    const cleanup = pageSource.slice(cleanupStart, effectStart);
-    const jobEffect = pageSource.slice(effectStart, effectEnd);
-    const retrieval = pageSource.slice(retrievalStart, retrievalEnd);
-    const imageHandlerStart = pageSource.indexOf("async function resolveSupportingImage");
-    const imageHandlerEnd = pageSource.indexOf("async function startSession", imageHandlerStart);
-    const imageHandler = pageSource.slice(imageHandlerStart, imageHandlerEnd);
-    assert.match(cleanup, /objectUrlRegistryRef\.current\.revokeAll\(\)/);
-    assert.match(cleanup, /commissioningResultGenerationRef\.current\.invalidate\(\)/);
-    assert.match(retrieval, /clearCommissioningOutput\(\)/);
-    assert.match(jobEffect, /jobObjectUrlRegistry\.revokeAll\(\)/);
-    assert.match(jobEffect, /const jobObjectUrlRegistry = objectUrlRegistryRef\.current/);
-    assert.match(jobEffect, /jobObjectUrlRegistry\.revokeAll\(\)/);
-    assert.match(imageHandler, /objectUrlRegistryRef\.current\.create\(key, blob\)/);
-    assert.match(imageHandler, /activeJobIdRef\.current !== requestJobId/);
-    assert.match(imageHandler, /commissioningResultGenerationRef\.current\.capture\(key\)/);
-    assert.match(imageHandler, /commissioningResultGenerationRef\.current\.isCurrent\(resultCitation\)/);
-    assert.match(retrieval, /commissioningResultGenerationRef\.current\.activate\(/);
+test("admin commissioning component cleans object URLs and rejects stale citation responses", () => {
+    assert.match(commissioningPanelSource, /useEffect\(\(\) => \(\) => urlRegistryRef\.current\.revokeAll\(\), \[\]\)/);
+    assert.match(commissioningPanelSource, /function clearResults\(\)/);
+    assert.match(commissioningPanelSource, /generationRef\.current\.invalidate\(\)/);
+    assert.match(commissioningPanelSource, /urlRegistryRef\.current\.revokeAll\(\)/);
+    assert.match(commissioningPanelSource, /generationRef\.current\.capture\(key\)/);
+    assert.match(commissioningPanelSource, /generationRef\.current\.isCurrent\(activeCitation\)/);
+    assert.match(commissioningPanelSource, /urlRegistryRef\.current\.create\(key, blob\)/);
 });

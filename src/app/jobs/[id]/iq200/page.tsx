@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { use, useEffect, useRef, useState } from "react";
 import { Bot, ChevronLeft, History, Search, Send, ShieldCheck, Wrench } from "lucide-react";
 import {
@@ -18,26 +17,15 @@ import {
   applySubmissionSuccess,
   applySubmissionFailure,
   classifyIQ200Error,
-  createCommissioningResultGeneration,
-  createObjectUrlRegistry,
-  fetchJobKnowledge,
   fetchSessionAssessment,
-  resolveJobKnowledgeImage,
-  resolveJobKnowledgePage,
   type IQ200ApiOptions,
-  type JobKnowledgeCitation,
-  type JobKnowledgePageResolution,
-  type JobKnowledgeRequestResult,
 } from "@/lib/iq200/client";
 
-type Context = { commissioningSurfaceAvailable?: boolean; job: { id: string; number: string; status: string; description: string; location: string; faultCodes: string[]; notes: Array<{ text: string; author: string; createdAt: string | null }>; diagnostics: Array<{ code: string; description: string; status: string; source: string; value: string | number | null; recordedAt: string | null }>; vehicle: { registrationNumber: string; fleetNumber: string; make: string; model: string; type: string; engineFamily: string } }; currentUser: { name: string } };
+type Context = { job: { id: string; number: string; status: string; description: string; location: string; faultCodes: string[]; notes: Array<{ text: string; author: string; createdAt: string | null }>; diagnostics: Array<{ code: string; description: string; status: string; source: string; value: string | number | null; recordedAt: string | null }>; vehicle: { registrationNumber: string; fleetNumber: string; make: string; model: string; type: string; engineFamily: string } }; currentUser: { name: string } };
 type Session = { id: string; initialQuestion?: string; state?: string; responseStatus?: string; createdAt?: string };
 type HistoricalResult = { id: string; jobNumber: string; date: string | null; registration: string; fleetNumber: string; make: string; model: string; description: string; faultCodes: string[]; technicianFindings: string[]; repairPerformed: string[]; partsUsed: string[]; status: string; outcome: string; cancelled: boolean; incomplete: boolean; reopened: boolean; relevanceScore: number; relevanceReasons: string[] };
 type KnownFix = { id: string; title: string; category: string; vehicleMake: string; vehicleModel: string; vehicleType: string; engineFamily: string; systemComponent: string; symptoms: string[]; faultCodes: string[]; diagnosticProcedure: string; expectedValues: string; findingsConditions: string; repairProcedure: string; requiredTools: string[]; partsComponents: string[]; safetyWarnings: string; technicalCautions: string; sourceReference: string; revision: number; relevanceScore: number; relevanceReasons: string[] };
 type ReasoningResponse = { summary: string; observations: string[]; hypotheses: Array<{ title: string; explanation: string; confidence: "LOW" | "MEDIUM" | "HIGH"; evidenceReferences: string[]; contradictions: string[]; recommendedChecks: string[] }>; checks: Array<{ description: string; purpose: string; expectedResult: string; safetyNote: string; evidenceSource: string }>; safetyWarnings: string[]; missingInformation: string[]; evidenceUsed: Array<{ category: string; reference: string; detail: string }>; confidence: "LOW" | "MEDIUM" | "HIGH"; limitations: string[] };
-type SupportingImageState = { url: string; citation: JobKnowledgeCitation };
-type SupportingPageState = { response: JobKnowledgePageResolution; citation: JobKnowledgeCitation };
-
 export default function IQ200JobPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [context, setContext] = useState<Context | null>(null);
@@ -63,23 +51,6 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [assessmentRetrievalLoading, setAssessmentRetrievalLoading] = useState(false);
   const [assessmentRetrievalError, setAssessmentRetrievalError] = useState("");
-  const [commissioningQuestion, setCommissioningQuestion] = useState("");
-  const [commissioningLoading, setCommissioningLoading] = useState(false);
-  const [commissioningError, setCommissioningError] = useState("");
-  const [commissioningResult, setCommissioningResult] = useState<JobKnowledgeRequestResult | null>(null);
-  const [pageResolutions, setPageResolutions] = useState<Record<string, SupportingPageState>>({});
-  const [pageResolutionErrors, setPageResolutionErrors] = useState<Record<string, string>>({});
-  const [pageResolutionLoading, setPageResolutionLoading] = useState<Record<string, boolean>>({});
-  const [imageResolutions, setImageResolutions] = useState<Record<string, SupportingImageState>>({});
-  const [imageResolutionErrors, setImageResolutionErrors] = useState<Record<string, string>>({});
-  const [imageResolutionLoading, setImageResolutionLoading] = useState<Record<string, boolean>>({});
-  const commissioningRequestInFlight = useRef(false);
-  const pageResolutionInFlight = useRef(new Set<string>());
-  const imageResolutionInFlight = useRef(new Set<string>());
-  const [objectUrlRegistry] = useState(() => createObjectUrlRegistry());
-  const objectUrlRegistryRef = useRef(objectUrlRegistry);
-  const [commissioningResultGeneration] = useState(() => createCommissioningResultGeneration());
-  const commissioningResultGenerationRef = useRef(commissioningResultGeneration);
 
   // Phase 13D-1: Synchronous guards and correlation
   const submissionGuardRef = useRef(createSubmissionGuard());
@@ -115,21 +86,7 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
     return result.sessions;
   }
 
-  function clearCommissioningOutput() {
-    commissioningResultGenerationRef.current.invalidate();
-    objectUrlRegistryRef.current.revokeAll();
-    setCommissioningResult(null);
-    setPageResolutions({});
-    setPageResolutionErrors({});
-    setPageResolutionLoading({});
-    setImageResolutions({});
-    setImageResolutionErrors({});
-    setImageResolutionLoading({});
-  }
-
   useEffect(() => {
-    const jobObjectUrlRegistry = objectUrlRegistryRef.current;
-    const jobResultGeneration = commissioningResultGenerationRef.current;
     initialLoadAbortRef.current?.abort();
     submissionAbortRef.current?.abort();
     historyAbortRef.current?.abort();
@@ -143,8 +100,6 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
     const abortController = new AbortController();
     initialLoadAbortRef.current = abortController;
     let active = true;
-    jobResultGeneration.invalidate();
-    jobObjectUrlRegistry.revokeAll();
     setLoading(true);
     setLoadedJobId(null);
     setContext(null);
@@ -166,16 +121,6 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
     setSelectedSessionId(null);
     setAssessmentRetrievalLoading(false);
     setAssessmentRetrievalError("");
-    setCommissioningQuestion("");
-    setCommissioningLoading(false);
-    setCommissioningError("");
-    setCommissioningResult(null);
-    setPageResolutions({});
-    setPageResolutionErrors({});
-    setPageResolutionLoading({});
-    setImageResolutions({});
-    setImageResolutionErrors({});
-    setImageResolutionLoading({});
     sessionCreateKeyRef.current = null;
     const isCurrentJob = () => active && activeJobIdRef.current === id && jobGenerationRef.current === generation;
 
@@ -223,98 +168,12 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
       submissionAbortRef.current?.abort();
       historyAbortRef.current?.abort();
       retrievalAbortRef.current?.abort();
-      jobResultGeneration.invalidate();
-      jobObjectUrlRegistry.revokeAll();
       nextRequestToken(submissionCorrelationRef.current);
       nextRequestToken(historyCorrelationRef.current);
       nextRequestToken(retrievalCorrelationRef.current);
       if (jobGenerationRef.current === generation) jobGenerationRef.current += 1;
     };
   }, [id]);
-
-  async function runKnowledgeRetrieval(event: React.FormEvent) {
-    event.preventDefault();
-    if (
-      context?.commissioningSurfaceAvailable !== true ||
-      commissioningRequestInFlight.current ||
-      !commissioningQuestion.trim()
-    ) return;
-    commissioningRequestInFlight.current = true;
-    setCommissioningLoading(true);
-    setCommissioningError("");
-    clearCommissioningOutput();
-    const requestJobId = id;
-    const requestJobGeneration = jobGenerationRef.current;
-    const resultGeneration = commissioningResultGenerationRef.current.current();
-    try {
-      const result = await fetchJobKnowledge(requestJobId, commissioningQuestion);
-      if (activeJobIdRef.current === requestJobId && jobGenerationRef.current === requestJobGeneration && commissioningResultGenerationRef.current.current() === resultGeneration) {
-        commissioningResultGenerationRef.current.activate(result.data.results.map(({ citation }) => citation.evidenceReference));
-        setCommissioningResult(result);
-      }
-    } catch (reason) {
-      if (activeJobIdRef.current === requestJobId && jobGenerationRef.current === requestJobGeneration && commissioningResultGenerationRef.current.current() === resultGeneration) {
-        setCommissioningError(reason instanceof Error ? reason.message : "Knowledge retrieval failed.");
-      }
-    } finally {
-      commissioningRequestInFlight.current = false;
-      setCommissioningLoading(false);
-    }
-  }
-
-  async function resolveSupportingPage(citation: JobKnowledgeCitation) {
-    const key = citation.evidenceReference;
-    if (pageResolutionInFlight.current.has(key)) return;
-    const requestJobId = id;
-    const generation = jobGenerationRef.current;
-    const resultCitation = commissioningResultGenerationRef.current.capture(key);
-    if (!resultCitation) return;
-    pageResolutionInFlight.current.add(key);
-    setPageResolutionLoading((current) => ({ ...current, [key]: true }));
-    setPageResolutionErrors((current) => ({ ...current, [key]: "" }));
-    try {
-      const response = await resolveJobKnowledgePage(requestJobId, commissioningQuestion, citation);
-      if (activeJobIdRef.current === requestJobId && jobGenerationRef.current === generation && commissioningResultGenerationRef.current.isCurrent(resultCitation)) {
-        setPageResolutions((current) => ({ ...current, [key]: { response, citation } }));
-      }
-    } catch (reason) {
-      if (activeJobIdRef.current === requestJobId && jobGenerationRef.current === generation && commissioningResultGenerationRef.current.isCurrent(resultCitation)) {
-        setPageResolutionErrors((current) => ({ ...current, [key]: reason instanceof Error ? reason.message : "Supporting page resolution failed." }));
-      }
-    } finally {
-      pageResolutionInFlight.current.delete(key);
-      if (activeJobIdRef.current === requestJobId && jobGenerationRef.current === generation && commissioningResultGenerationRef.current.isCurrent(resultCitation)) {
-        setPageResolutionLoading((current) => ({ ...current, [key]: false }));
-      }
-    }
-  }
-
-  async function resolveSupportingImage(citation: JobKnowledgeCitation) {
-    const key = citation.evidenceReference;
-    if (imageResolutionInFlight.current.has(key)) return;
-    const requestJobId = id;
-    const generation = jobGenerationRef.current;
-    const resultCitation = commissioningResultGenerationRef.current.capture(key);
-    if (!resultCitation) return;
-    imageResolutionInFlight.current.add(key);
-    setImageResolutionLoading((current) => ({ ...current, [key]: true }));
-    setImageResolutionErrors((current) => ({ ...current, [key]: "" }));
-    try {
-      const blob = await resolveJobKnowledgeImage(requestJobId, commissioningQuestion, citation);
-      if (activeJobIdRef.current !== requestJobId || jobGenerationRef.current !== generation || !commissioningResultGenerationRef.current.isCurrent(resultCitation)) return;
-      const url = objectUrlRegistryRef.current.create(key, blob);
-      setImageResolutions((current) => ({ ...current, [key]: { url, citation } }));
-    } catch (reason) {
-      if (activeJobIdRef.current === requestJobId && jobGenerationRef.current === generation && commissioningResultGenerationRef.current.isCurrent(resultCitation)) {
-        setImageResolutionErrors((current) => ({ ...current, [key]: reason instanceof Error ? reason.message : "Supporting image resolution failed." }));
-      }
-    } finally {
-      imageResolutionInFlight.current.delete(key);
-      if (activeJobIdRef.current === requestJobId && jobGenerationRef.current === generation && commissioningResultGenerationRef.current.isCurrent(resultCitation)) {
-        setImageResolutionLoading((current) => ({ ...current, [key]: false }));
-      }
-    }
-  }
 
   async function startSession(event: React.FormEvent) {
     event.preventDefault();
@@ -520,65 +379,6 @@ export default function IQ200JobPage({ params }: { params: Promise<{ id: string 
       {historyError && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{historyError}</p>}
       <div className="mt-5 space-y-4">{history.map((item, index) => <article key={item.id} className="rounded-2xl border border-slate-200 p-4 sm:p-5"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><EvidenceBadge reference={`HISTORY_${index + 1}`} /><Link href={`/jobs/${item.id}`} className="mt-2 block text-lg font-black text-blue-700">Job {item.jobNumber}</Link><p className="text-sm font-bold text-slate-700">{[item.make, item.model, item.registration, item.fleetNumber].filter(Boolean).join(" · ") || "Vehicle details unavailable"}</p></div><div className="text-left text-xs font-bold text-slate-500 sm:text-right">{item.date ? new Date(item.date).toLocaleDateString("en-ZA") : "Date unavailable"}<div className="mt-1">Relevance {item.relevanceScore}</div></div></div><p className="mt-3 text-xs font-black uppercase text-slate-500">Why this may be relevant</p><div className="mt-2 flex flex-wrap gap-2">{item.relevanceReasons.map((reason) => <span key={reason} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-800">{reason}</span>)}</div><div className="mt-4 grid gap-3 text-sm md:grid-cols-2">{item.description && <Summary label="Reported" values={[item.description]} />}<Summary label="Technician finding" values={item.technicianFindings} /><Summary label="Repair performed" values={item.repairPerformed} /><Summary label="Parts previously used" values={item.partsUsed} /></div><div className={`mt-4 rounded-xl p-3 text-sm ${item.cancelled || item.incomplete || item.reopened ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-900"}`}><strong>{item.cancelled ? "Cancelled" : item.reopened ? "Reopened work" : item.incomplete ? "Diagnosis/work incomplete" : "Completed history"}:</strong> {item.outcome || item.status || "No completion outcome recorded."}</div></article>)}{!history.length && !historyError && <div className="rounded-2xl border border-dashed p-8 text-center text-sm font-semibold text-slate-500">No relevant historical repairs were found. Continue with current-job evidence and approved procedures.</div>}</div>
     </section>
-    {context.commissioningSurfaceAvailable === true && (
-      <section className="rounded-3xl border border-amber-300 bg-amber-50 p-5 shadow-sm sm:p-7" aria-labelledby="knowledge-commissioning-title">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-black uppercase tracking-widest text-amber-800">Staging-only control</p>
-            <h2 id="knowledge-commissioning-title" className="mt-1 text-xl font-black text-slate-950">Knowledge Retrieval Commissioning</h2>
-            <p className="mt-1 text-sm text-slate-700">Standalone Knowledge retrieval. This does not create an IQ200 session or run reasoning.</p>
-          </div>
-          <span className="rounded-full border border-amber-400 px-3 py-1 font-mono text-xs font-bold text-amber-900">Job ID: {context.job.id}</span>
-        </div>
-        <form onSubmit={runKnowledgeRetrieval} className="mt-5">
-          <label className="text-sm font-bold text-slate-800">Knowledge question
-            <textarea value={commissioningQuestion} onChange={(event) => setCommissioningQuestion(event.target.value)} maxLength={2000} rows={3} placeholder="Ask a specific question about approved Knowledge" className="mt-2 w-full resize-y rounded-xl border border-amber-300 bg-white p-3 font-normal" />
-          </label>
-          <button type="submit" disabled={commissioningLoading || !commissioningQuestion.trim()} className="mt-3 min-h-11 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">
-            {commissioningLoading ? "Retrieving Knowledge…" : "Run Knowledge Retrieval"}
-          </button>
-        </form>
-        {commissioningError && <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-white p-3 text-sm text-red-800">{commissioningError}</p>}
-        {commissioningResult && (
-          <div className="mt-5 space-y-4" aria-live="polite">
-            <p role="status" className="text-sm font-bold text-emerald-900">B5 Knowledge retrieval completed · HTTP {commissioningResult.httpStatus}</p>
-            {commissioningResult.data.results.map(({ relevance, citation }) => (
-              <article key={citation.evidenceReference} className="rounded-2xl border border-amber-200 bg-white p-4">
-                <h3 className="font-black text-slate-950">{citation.documentTitle}</h3>
-                <dl className="mt-2 grid gap-1 text-xs text-slate-700 sm:grid-cols-2">
-                  <div>Document ID: <span className="font-mono">{citation.documentId}</span></div>
-                  <div>Page: {citation.displayPageNumber} <span className="font-mono">({citation.pageId})</span></div>
-                  <div>Text hash: <span className="font-mono break-all">{citation.textContentHash}</span></div>
-                  <div>Source: <span className="font-mono break-all">{citation.evidenceReference}</span></div>
-                  <div className="sm:col-span-2">Relevance: {relevance.join(" · ")}</div>
-                </dl>
-                <p className="mt-3 whitespace-pre-wrap text-sm text-slate-800">{citation.excerpt}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button type="button" onClick={() => void resolveSupportingPage(citation)} disabled={pageResolutionLoading[citation.evidenceReference] === true} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-800 disabled:opacity-50">
-                    {pageResolutionLoading[citation.evidenceReference] ? "Resolving page…" : "Resolve supporting page"}
-                  </button>
-                  <button type="button" onClick={() => void resolveSupportingImage(citation)} disabled={imageResolutionLoading[citation.evidenceReference] === true} className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-800 disabled:opacity-50">
-                    {imageResolutionLoading[citation.evidenceReference] ? "Resolving image…" : "Resolve supporting image"}
-                  </button>
-                </div>
-                {pageResolutionErrors[citation.evidenceReference] && <p role="alert" className="mt-3 text-sm text-red-700">{pageResolutionErrors[citation.evidenceReference]}</p>}
-                {pageResolutions[citation.evidenceReference] && <p className="mt-3 text-sm text-emerald-800">Supporting page confirmed: Page {pageResolutions[citation.evidenceReference].response.citation.displayPageNumber}; image metadata {pageResolutions[citation.evidenceReference].response.imageWidth ?? "unknown"} × {pageResolutions[citation.evidenceReference].response.imageHeight ?? "unknown"}.</p>}
-                {imageResolutionErrors[citation.evidenceReference] && <p role="alert" className="mt-3 text-sm text-red-700">{imageResolutionErrors[citation.evidenceReference]}</p>}
-                {imageResolutions[citation.evidenceReference] && <Image src={imageResolutions[citation.evidenceReference].url} alt={`Supporting page ${citation.displayPageNumber}`} width={pageResolutions[citation.evidenceReference]?.response.imageWidth ?? 1200} height={pageResolutions[citation.evidenceReference]?.response.imageHeight ?? 1600} unoptimized className="mt-4 max-h-[70vh] max-w-full rounded-lg border border-slate-200 object-contain" />}
-              </article>
-            ))}
-            {commissioningResult.data.results.length === 0 && <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-700">No relevant Knowledge evidence was returned.</p>}
-            <details className="rounded-xl border border-amber-200 bg-white p-4 text-sm">
-              <summary className="cursor-pointer font-bold">Retrieval coverage</summary>
-              <dl className="mt-3 grid gap-1 sm:grid-cols-2">
-                {Object.entries(commissioningResult.data.coverage).map(([name, value]) => <div key={name}>{name}: {String(value)}</div>)}
-              </dl>
-              <p className="mt-2 break-all font-mono text-xs">Continuation cursor: {commissioningResult.data.continuationCursor ?? "None"}</p>
-            </details>
-          </div>
-        )}
-      </section>
-    )}
     <KnownFixesSection fixes={knownFixes} />
 
     <section className="rounded-3xl border bg-white p-5 shadow-sm sm:p-7"><div className="flex items-center gap-3"><Wrench className="text-blue-600" /><div><p className="text-xs font-black uppercase tracking-widest text-blue-600">Technician question</p><h2 className="text-xl font-black">Record what you need to verify</h2><p className="text-sm text-slate-500">IQ200 is advisory only. It cannot authorize repairs, change this job, contact customers, or order parts.</p></div></div><form onSubmit={startSession} className="mt-5"><label className="text-sm font-bold text-slate-700">What are you seeing on the vehicle?<textarea value={question} onChange={(event) => setQuestion(event.target.value)} maxLength={2000} rows={5} placeholder="Example: Truck is cranking but not starting. Where should I test next?" className="mt-2 w-full resize-y rounded-2xl border border-slate-300 p-4 font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" /></label><p className="mt-2 text-xs text-slate-500">Maximum 2,000 characters. Submission remains permission-controlled and company-scoped.</p>{error && <p role="alert" className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}<button type="submit" disabled={saving || !question.trim()} className="mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-6 py-3 font-black text-white disabled:opacity-40 sm:w-auto"><Send size={17} />{saving ? "Saving question…" : "Save question and check availability"}</button></form>{reasoningMessage && <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{reasoningMessage}</div>}</section>

@@ -279,7 +279,7 @@ function sameKnowledgeCitation(left: JobKnowledgeCitation, right: JobKnowledgeCi
     left.supportingPageReference.pageId === right.supportingPageReference.pageId;
 }
 
-function isJobKnowledgeResponse(value: unknown): value is JobKnowledgeResponse {
+export function isJobKnowledgeResponse(value: unknown): value is JobKnowledgeResponse {
   if (!isRecord(value) || !hasExactKeys(value, ["results", "evidence", "coverage", "continuationCursor"])) return false;
   if (!Array.isArray(value.results) || !Array.isArray(value.evidence) || value.results.length > KNOWLEDGE_MAX_RESULTS || value.evidence.length !== value.results.length) return false;
   if (value.continuationCursor !== null && (typeof value.continuationCursor !== "string" || !KNOWLEDGE_ID_PATTERN.test(value.continuationCursor))) return false;
@@ -327,6 +327,19 @@ export async function fetchJobKnowledge(jobId: string, question: string, cursor?
   return { httpStatus: response.status, data: payload };
 }
 
+export async function fetchCommissioningKnowledge(question: string, cursor?: string): Promise<JobKnowledgeRequestResult> {
+  if (!validQuestion(question) || (cursor !== undefined && !validJobId(cursor))) {
+    throw new IQ200ApiError("http", "A valid question and cursor are required.", 422);
+  }
+  const response = await iq200ApiResponse("/api/iq200/knowledge/commissioning/retrieve", {
+    method: "POST",
+    body: JSON.stringify({ question: question.trim(), ...(cursor ? { cursor } : {}) }),
+  });
+  const payload: unknown = await response.json().catch(() => ({}));
+  if (!isJobKnowledgeResponse(payload)) throw new IQ200ApiError("http", "The Knowledge retrieval response was invalid.", 502);
+  return { httpStatus: response.status, data: payload };
+}
+
 export async function resolveJobKnowledgePage(
   jobId: string,
   question: string,
@@ -338,6 +351,53 @@ export async function resolveJobKnowledgePage(
     `/api/iq200/jobs/${encodeURIComponent(jobId)}/knowledge/${encodeURIComponent(citation.supportingPageReference.documentId)}/pages/${encodeURIComponent(citation.supportingPageReference.pageId)}`,
     { method: "POST", body: JSON.stringify({ question: question.trim(), evidenceReference: citation.evidenceReference }) },
   );
+}
+
+function parseCommissioningPageResolution(value: unknown, citation: JobKnowledgeCitation): JobKnowledgePageResolution {
+  if (!isRecord(value) || !hasExactKeys(value, ["citation", "imageWidth", "imageHeight"]) || !isKnowledgeCitation(value.citation)) {
+    throw new IQ200ApiError("http", "The supporting page response was invalid.", 502);
+  }
+  const dimension = (input: unknown) => input === null || (Number.isSafeInteger(input) && (input as number) > 0 && (input as number) <= 10000);
+  if (!sameKnowledgeCitation(value.citation, citation) || !dimension(value.imageWidth) || !dimension(value.imageHeight)) {
+    throw new IQ200ApiError("http", "The supporting page did not match its retrieval citation.", 502);
+  }
+  return { citation: value.citation, imageWidth: value.imageWidth as number | null, imageHeight: value.imageHeight as number | null };
+}
+
+function commissioningCitationPath(citation: JobKnowledgeCitation, image = false): string {
+  assertResolvableCitation(citation);
+  const base = `/api/iq200/knowledge/commissioning/${encodeURIComponent(citation.supportingPageReference.documentId)}/pages/${encodeURIComponent(citation.supportingPageReference.pageId)}`;
+  return image ? `${base}/image` : base;
+}
+
+function commissioningCitationBody(question: string, citation: JobKnowledgeCitation, cursor?: string): string {
+  if (!validQuestion(question) || (cursor !== undefined && !validJobId(cursor))) {
+    throw new IQ200ApiError("http", "A valid question and cursor are required.", 422);
+  }
+  return JSON.stringify({ question: question.trim(), ...(cursor ? { cursor } : {}), evidenceReference: citation.evidenceReference });
+}
+
+export async function resolveCommissioningKnowledgePage(
+  question: string,
+  citation: JobKnowledgeCitation,
+  cursor?: string,
+): Promise<JobKnowledgePageResolution> {
+  const value: unknown = await iq200Api<unknown>(commissioningCitationPath(citation), {
+    method: "POST",
+    body: commissioningCitationBody(question, citation, cursor),
+  });
+  return parseCommissioningPageResolution(value, citation);
+}
+
+export async function resolveCommissioningKnowledgeImage(
+  question: string,
+  citation: JobKnowledgeCitation,
+  cursor?: string,
+): Promise<Blob> {
+  return iq200ApiBlob(commissioningCitationPath(citation, true), {
+    method: "POST",
+    body: commissioningCitationBody(question, citation, cursor),
+  });
 }
 
 export async function resolveJobKnowledgeImage(

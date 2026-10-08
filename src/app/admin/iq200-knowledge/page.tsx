@@ -17,6 +17,7 @@ import {
     type KnowledgeUploadOutcome,
 } from "@/lib/iq200/knowledgeClient";
 import type { KnowledgeDocumentPreviewResponse } from "@/lib/iq200/knowledgeContracts";
+import CommissioningPanel from "./CommissioningPanel";
 
 type UploadState = "idle" | "ready" | "uploading" | "success" | "error";
 
@@ -44,6 +45,7 @@ export default function KnowledgeLibraryPage() {
     const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState("");
+    const [commissioningAvailable, setCommissioningAvailable] = useState(false);
 
     const [file, setFile] = useState<File | null>(null);
     const [title, setTitle] = useState("");
@@ -67,10 +69,12 @@ export default function KnowledgeLibraryPage() {
     const load = useCallback(async () => {
         setLoading(true);
         setLoadError("");
+        setCommissioningAvailable(false);
         try {
             const result = await fetchKnowledgeLibrary();
             setCapabilities(result.capabilities);
             setDocuments(result.documents);
+            setCommissioningAvailable(result.commissioningAvailable === true);
         } catch (error) {
             setLoadError(error instanceof Error ? error.message : "Unable to load the Knowledge Library.");
         } finally {
@@ -223,6 +227,7 @@ export default function KnowledgeLibraryPage() {
 
             {loading && !capabilities && <div className="text-lg font-bold text-gray-600">Loading…</div>}
             {loadError && <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-red-700">{loadError}</div>}
+            {commissioningAvailable && <CommissioningPanel />}
 
             {surface.showUpload && (
                 <section className="mb-8 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">

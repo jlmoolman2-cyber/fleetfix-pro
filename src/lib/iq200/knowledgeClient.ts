@@ -30,7 +30,7 @@ export type KnowledgeDocument = {
     pageCount: number;
 };
 
-export type KnowledgeLibraryResponse = { capabilities: KnowledgeCapabilities; documents: KnowledgeDocument[] };
+export type KnowledgeLibraryResponse = { capabilities: KnowledgeCapabilities; documents: KnowledgeDocument[]; commissioningAvailable: boolean };
 
 export type KnowledgeUploadResponse = {
     documentId: string;
