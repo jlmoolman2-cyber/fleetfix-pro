@@ -335,3 +335,146 @@ test("25. production parser then renderer reuse the same attached source bytes",
   assert.ok(rendered.pngBytes.length > 8);
   assertSourcePreserved();
 });
+
+// ── B6B-76: Post-render content validation ─────────────────────────
+
+test("26. rendered PDF with black text produces non-white PNG pixels", async () => {
+  const pdfBytes = createSyntheticPdf({ text: "B6B-76 Black Text Validation", color: [0, 0, 0] });
+  const result = await renderPdfPageToPng(pdfBytes, 0);
+  assert.equal(result.mimeType, "image/png");
+  assert.ok(result.pngBytes.length > 1024);
+  // Verify PNG signature
+  assert.equal(result.pngBytes[0], 137);
+  assert.equal(result.pngBytes[1], 80);
+  assert.equal(result.pngBytes[2], 78);
+  assert.equal(result.pngBytes[3], 71);
+  // Decode and verify non-white pixels exist
+  const { default: sharp } = await import("sharp");
+  const { data, info } = await sharp(Buffer.from(result.pngBytes)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const pixels = new Uint8Array(data);
+  assert.equal(info.width, 2481);
+  assert.equal(info.height, 3508);
+  let nonWhite = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (pixels[i] < 255 || pixels[i + 1] < 255 || pixels[i + 2] < 255) nonWhite++;
+  }
+  assert.ok(nonWhite > 100, `Expected non-white pixels from rendered text but found only ${nonWhite}`);
+});
+
+test("27. rendered PDF with black rectangle produces visible dark pixels", async () => {
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  doc.setFillColor(0, 0, 0);
+  doc.rect(50, 50, 200, 100, "F");
+  const pdfBytes = new Uint8Array(doc.output("arraybuffer"));
+  const result = await renderPdfPageToPng(pdfBytes, 0);
+  assert.equal(result.widthPixels, 2481);
+  assert.equal(result.heightPixels, 3508);
+  // Decode and verify dark pixels from the rectangle
+  const { default: sharp } = await import("sharp");
+  const { data } = await sharp(Buffer.from(result.pngBytes)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const pixels = new Uint8Array(data);
+  let darkPixels = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+    if (brightness < 128) darkPixels++;
+  }
+  assert.ok(darkPixels > 1000, `Expected dark pixels from black rectangle but found only ${darkPixels}`);
+});
+
+test("28. post-render validation allows valid rendered content", async () => {
+  const pdfBytes = createSyntheticPdf({ text: "Validation Test", color: [0, 0, 0] });
+  const result = await renderPdfPageToPng(pdfBytes, 0);
+  assert.ok(result.pngBytes.length > 0);
+  assert.equal(result.mimeType, "image/png");
+});
+
+test("29. existing renderer behavior preserved for valid documents", async () => {
+  const pdfBytes = createSyntheticPdf({ text: "Existing Behavior", color: [255, 0, 0] });
+  const result = await renderPdfPageToPng(pdfBytes, 0);
+  assert.equal(result.pageIndex, 0);
+  assert.equal(result.dpi, 300);
+  assert.equal(result.mimeType, "image/png");
+  assert.ok(result.pngBytes.length > 8);
+  assert.equal(result.pngBytes[0], 137);
+  assert.equal(result.pngBytes[1], 80);
+  assert.equal(result.pngBytes[2], 78);
+  assert.equal(result.pngBytes[3], 71);
+});
+
+test("30. PNG dimensions remain correct after validation", async () => {
+  const pdfBytes = createSyntheticPdf({ text: "Dimension Check", color: [0, 0, 0] });
+  const result = await renderPdfPageToPng(pdfBytes, 0);
+  assert.equal(result.widthPixels, 2481);
+  assert.equal(result.heightPixels, 3508);
+  const { default: sharp } = await import("sharp");
+  const meta = await sharp(Buffer.from(result.pngBytes)).metadata();
+  assert.equal(meta.width, 2481);
+  assert.equal(meta.height, 3508);
+});
+
+// Note: A "legitimately blank" PDF page test is not included because jsPDF
+// adds page setup operators even for blank pages. The validation intentionally
+// rejects pages with operators but no visible content, as this indicates a
+// rendering failure in the context of IQ200 technical documents.
+
+test("32. sparse content at edge positions is detected by full pixel scan", async () => {
+  // Create a PDF with a small black dot at position that would be between
+  // old 10x10 grid sample points (e.g., at x=124, y=175 in points)
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  doc.setFillColor(0, 0, 0);
+  // Small circle at sparse position
+  doc.circle(124, 175, 3, "F");
+  const pdfBytes = new Uint8Array(doc.output("arraybuffer"));
+  // Should succeed - full pixel scan detects the small dot
+  const result = await renderPdfPageToPng(pdfBytes, 0);
+  assert.equal(result.mimeType, "image/png");
+  // Verify the dot rendered (non-white pixels exist)
+  const { default: sharp } = await import("sharp");
+  const { data } = await sharp(Buffer.from(result.pngBytes)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const pixels = new Uint8Array(data);
+  let nonWhite = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    if (pixels[i] < 255 || pixels[i + 1] < 255 || pixels[i + 2] < 255) nonWhite++;
+  }
+  assert.ok(nonWhite > 0, "Expected non-white pixels from sparse dot");
+});
+
+test("33. thin wiring-style lines are detected by full pixel scan", async () => {
+  // Create a PDF with thin horizontal and vertical lines
+  const doc = new jsPDF({ unit: "pt", format: "a4" });
+  doc.setDrawColor(0, 0, 0);
+  doc.setLineWidth(0.5); // Thin line (0.5pt)
+  // Horizontal line at y=200
+  doc.line(50, 200, 500, 200);
+  // Vertical line at x=300
+  doc.line(300, 50, 300, 700);
+  const pdfBytes = new Uint8Array(doc.output("arraybuffer"));
+  // Should succeed - full pixel scan detects thin lines
+  const result = await renderPdfPageToPng(pdfBytes, 0);
+  assert.equal(result.mimeType, "image/png");
+  // Verify lines rendered
+  const { default: sharp } = await import("sharp");
+  const { data } = await sharp(Buffer.from(result.pngBytes)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const pixels = new Uint8Array(data);
+  let darkPixels = 0;
+  for (let i = 0; i < pixels.length; i += 4) {
+    const brightness = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3;
+    if (brightness < 200) darkPixels++; // Threshold for thin anti-aliased lines
+  }
+  assert.ok(darkPixels > 100, `Expected dark pixels from thin lines but found only ${darkPixels}`);
+});
+
+test("34. rendering failure propagates without producing PNG", async () => {
+  // This test verifies that when validation fails, no PNG is produced.
+  // We can't easily simulate a blank canvas with operators using the public API,
+  // but we can verify the error type and code are correct for invalid input.
+  const invalidBytes = new Uint8Array([0x00, 0x01, 0x02, 0x03]); // Not a valid PDF
+  await assert.rejects(
+    () => renderPdfPageToPng(invalidBytes, 0),
+    (error: unknown) => {
+      assert.ok(error instanceof PdfRenderError);
+      assert.equal(error.code, "PDF_RENDER_FAILED");
+      return true;
+    }
+  );
+});

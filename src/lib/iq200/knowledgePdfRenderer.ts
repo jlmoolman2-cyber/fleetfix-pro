@@ -123,6 +123,44 @@ async function renderSinglePage(document: PDFDocumentProxy, pageIndex: number): 
     });
     await renderTask.promise;
 
+    // Post-render validation: detect blank canvas when page has content.
+    // PDF.js operator list tells us if the page has drawing operations.
+    // If operators exist but canvas is white, rendering failed silently.
+    // Note: an operator list with entries does NOT guarantee visible marks
+    // (white-on-white, invisible text, clipped/empty paths, off-page graphics).
+    // For pages with operators, we scan all pixels to detect a completely white
+    // canvas. getImageData allocates O(total_pixels) memory -- bounded by
+    // MAX_RENDER_PIXELS (50M pixels, max 200MB). The scan exits immediately
+    // on the first non-white pixel, so valid pages incur negligible cost.
+    const operatorList = await page.getOperatorList();
+    const hasOperators = operatorList.fnArray.length > 0;
+
+    if (hasOperators) {
+      // Scan all pixels to detect a completely white canvas.
+      // getImageData allocates O(total_pixels) memory -- bounded by
+      // MAX_RENDER_PIXELS (50M pixels, max 200MB). The scan exits immediately
+      // on the first non-white pixel, so valid pages incur negligible cost.
+      const imageData = context.getImageData(0, 0, widthPixels, heightPixels);
+      let hasVisibleContent = false;
+      for (let i = 0; i < imageData.data.length; i += 4) {
+        const r = imageData.data[i];
+        const g = imageData.data[i + 1];
+        const b = imageData.data[i + 2];
+        const a = imageData.data[i + 3];
+        if (a !== 255 || r !== 255 || g !== 255 || b !== 255) {
+          hasVisibleContent = true;
+          break;
+        }
+      }
+
+      if (!hasVisibleContent) {
+        throw new PdfRenderError(
+          "PDF_RENDER_FAILED",
+          "Rendered page contains drawing operations but produced no visible content.",
+        );
+      }
+    }
+
     const pngBytes = canvas.toBuffer("image/png");
     if (!pngBytes || pngBytes.length === 0) {
       throw new PdfRenderError("PNG_ENCODING_FAILED", "PNG encoding returned no bytes.");
