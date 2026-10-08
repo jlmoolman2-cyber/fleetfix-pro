@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import {
     createCommissioningResultGeneration,
@@ -170,7 +169,7 @@ export default function CommissioningPanel() {
                                 {pageErrors[key] && <p role="alert" className="mt-3 text-sm text-red-700">{pageErrors[key]}</p>}
                                 {pageResults[key] && <p className="mt-3 text-sm font-semibold text-emerald-800">Citation verified against the current published page. Image dimensions: {pageResults[key].imageWidth ?? "unknown"} × {pageResults[key].imageHeight ?? "unknown"}.</p>}
                                 {imageErrors[key] && <p role="alert" className="mt-3 text-sm text-red-700">{imageErrors[key]}</p>}
-                                {imageUrls[key] && <Image src={imageUrls[key]} alt={`Supporting page ${citation.displayPageNumber}`} width={pageResults[key]?.imageWidth ?? 1200} height={pageResults[key]?.imageHeight ?? 1600} unoptimized className="mt-4 max-h-[70vh] max-w-full rounded-lg border border-gray-200 object-contain" />}
+                                {imageUrls[key] && <img src={imageUrls[key]} alt={`Supporting page ${citation.displayPageNumber}`} className="mt-4 max-h-[70vh] max-w-full rounded-lg border border-gray-200 object-contain" />}
                             </article>
                         );
                     })}
